@@ -1,6 +1,6 @@
 # 拾光投資 Dashboard
 
-Next.js App Router、TypeScript、Tailwind CSS。介面為繁體中文，全部使用固定模擬資料。
+Next.js App Router、TypeScript、Tailwind CSS。介面為繁體中文；第二階段行情讀取 Yahoo Finance，失敗時顯示模擬備援，其餘研究內容維持 mock。詳見 MARKET-DATA.md。
 
 ## 本地執行
 

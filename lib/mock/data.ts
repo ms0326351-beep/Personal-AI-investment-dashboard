@@ -8,6 +8,9 @@ export const securities: Security[] = [
   ['NVDA','輝達','US','stock','USD',142.6,3.2,'半導體',0.03],
   ['VOO','Vanguard 標普500 ETF','US','etf','USD',532.4,3.7,'美國大型股',1.3],
   ['QQQ','Invesco 那斯達克100 ETF','US','etf','USD',498.2,-2.4,'科技成長股',0.6],
+  ['SPY','SPDR 標普500 ETF','US','etf','USD',564.2,3.6,'美國大型股',1.2],
+  ['MSFT','微軟','US','stock','USD',425.5,2.5,'軟體與雲端',0.7],
+  ['^TWII','台灣加權指數','TW','index','TWD',23458.32,268.45,'台灣股票市場',0],
 ].map(([symbol,name,market,type,currency,price,change,sector,dividendYield]) => ({symbol,name,market,type,currency,price,change,sector,dividendYield,updatedAt,changePercent: Number(change)/(Number(price)-Number(change))*100}) as Security);
 export const indices: MarketIndex[] = [
   ['TAIEX','加權指數','TW',23458.32,268.45],['TPEX','櫃買指數','TW',256.78,-1.23],['SP500','S&P 500','US',5648.4,42.16],['NASDAQ','那斯達克','US',17890.2,186.3],['DOW','道瓊工業','US',41265.8,-82.4],

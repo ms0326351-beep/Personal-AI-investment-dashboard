@@ -19,7 +19,7 @@ Netlify 會自動使用 OpenNext adapter，支援 App Router、SSR 與 Next.js r
 
 ## 環境變數與秘密
 
-目前資料全部由 mock services 提供，沒有外部 API 呼叫，也不需設定應用程式環境變數。
+第二階段行情透過伺服器 fetch 讀取 Yahoo Finance Chart，無需 API Key，也不需新增應用程式環境變數。新聞、人物、AI、匯率與持股仍是 mock。行情失敗時逐檔使用有明確標記的 mock 備援，詳見 MARKET-DATA.md。
 `.env.example` 的三個空白欄位只是未來串接預留，本次不必填寫。
 Node / pnpm 的非機密建置設定已寫入 netlify.toml。
 未來金鑰只在 Netlify 環境變數介面設定，透過伺服器端呼叫使用；不得加上 NEXT_PUBLIC_ 前綴。

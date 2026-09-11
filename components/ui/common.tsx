@@ -1,0 +1,8 @@
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
+import { number, percent } from '@/lib/utils/formatters';
+import type { Security, NewsItem } from '@/lib/types';
+export function Change({value}:{value:number}){return <span className={value>0?'up':value<0?'down':'muted'}>{percent(value)}</span>}
+export function Card({title,eyebrow,children,href,linkLabel='查看全部',className=''}:{title:string;eyebrow?:string;children:React.ReactNode;href?:string;linkLabel?:string;className?:string}){return <section className={`card ${className}`}><div className="card-heading"><div>{eyebrow&&<p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div>{href&&<Link className="text-link" href={href}>{linkLabel}<ArrowUpRight size={15}/></Link>}</div>{children}</section>}
+export function SecurityList({securities}:{securities:Security[]}){return <div>{securities.map(s=><Link href={`/stock/${s.symbol}`} key={s.symbol} className="security-row"><span className={`ticker-icon ${s.market==='US'?'us':''}`}>{s.symbol.slice(0,2)}</span><span className="security-name"><strong>{s.symbol}</strong><small>{s.name}</small></span><span className="quote"><strong>{number(s.price)}</strong><small>{s.currency} · <Change value={s.changePercent}/></small></span><ArrowUpRight size={15} className="muted"/></Link>)}</div>}
+export function NewsList({items}:{items:NewsItem[]}){return <div className="news-list">{items.map(n=><article key={n.id}><small className="muted">{n.source} · {n.publishedAt.slice(11,16)}</small><h3>{n.title}</h3><p>{n.summary}</p><div className="tags">{n.relatedSymbols.map(s=><Link href={`/stock/${s}`} key={s}>{s}</Link>)}</div></article>)}</div>}

@@ -1,0 +1,11 @@
+# Netlify automatically installs its OpenNext adapter for Next.js.
+[build]
+  command = "pnpm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "24"
+  PNPM_VERSION = "11.19.0"
+  PNPM_FLAGS = "--shamefully-hoist"
+
+# Keep Next.js routing and SSR. Do not add an SPA /* -> /index.html rewrite.

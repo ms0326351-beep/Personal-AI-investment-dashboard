@@ -1,0 +1,8 @@
+node_modules/
+.pnpm-store/
+.next/
+.netlify/
+.env*
+!.env.example
+*.tsbuildinfo
+*.log

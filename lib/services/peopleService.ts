@@ -1,4 +1,5 @@
-import { people, personEvents, peopleDate, peopleTime } from '@/lib/mock/people';
+import { peopleRegistry as people } from '@/lib/data/peopleRegistry';
+import { personEvents, peopleDate, peopleTime } from '@/lib/mock/people';
 import type { KeyPerson, PersonEvent, PeopleSnapshot } from '@/lib/types/people';
 export interface PeopleService {
   getPeople(): Promise<KeyPerson[]>;

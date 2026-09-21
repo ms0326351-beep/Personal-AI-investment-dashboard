@@ -81,8 +81,8 @@ export function createNewsAnalysisCache(
     },
     async setCachedAnalysis(key: string, value: CachedNewsAnalysis, ttl: number) {
       // Pick fields explicitly so even a full response cannot leak portfolio into Blobs.
-      const {newsId,status,schemaVersion,modelVersion,market,disclaimer,analyzedAt,unavailableReason}=value;
-      await write(key,{newsId,status,schemaVersion,modelVersion,market,disclaimer,analyzedAt,...(unavailableReason?{unavailableReason}:{})},ttl);
+      const {newsId,status,schemaVersion,modelVersion,market,disclaimer,analyzedAt,unavailableReason,inputBasis,errorCode,retryAt}=value;
+      await write(key,{newsId,status,schemaVersion,modelVersion,market,disclaimer,analyzedAt,...(unavailableReason?{unavailableReason}:{}),...(inputBasis?{inputBasis}:{}),...(errorCode?{errorCode}:{}),...(retryAt?{retryAt}:{})},ttl);
     },
     acquireLease: (key: string, token: string) => mutate(`lease:${key}`,90,{owner:''},v=>v.owner ? null : {owner:token}),
     releaseLease: (key: string, token: string) => mutate(`lease:${key}`,1,{owner:''},v=>v.owner===token ? {owner:''} : null),

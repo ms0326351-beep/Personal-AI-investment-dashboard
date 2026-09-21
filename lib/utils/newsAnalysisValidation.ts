@@ -1,5 +1,7 @@
 import { NEWS_TOPICS } from '../data/newsTopics';
 import type { MarketImpactAnalysis, NewsAIAnalysis } from '../types/newsAnalysis';
+import { hasDeepFields, isDeepMarketImpact, isSecurityImpact, containsTradingInstruction } from './deepNewsAnalysis';
+import { NEWS_INPUT_BASES } from './newsAnalysisInput';
 
 export const NEWS_EVENT_TYPES = ['earnings','monetary-policy','trade-policy','geopolitics','product','supply-chain','dividend','management-change','other'] as const;
 export const IMPACT_DIRECTIONS = ['bullish','bearish','neutral','uncertain'] as const;
@@ -13,15 +15,24 @@ export function isMarketImpact(v: unknown): v is MarketImpactAnalysis {
   return object(v) && strings(v.explicitlyMentionedSymbols) && strings(v.inferredSymbols) && strings(v.relatedPersonIds)
     && strings(v.relatedTopics) && v.relatedTopics.length<=3 && v.relatedTopics.every(t=>NEWS_TOPICS.includes(t as typeof NEWS_TOPICS[number]))
     && member(NEWS_EVENT_TYPES,v.eventType) && member(IMPACT_DIRECTIONS,v.impactDirection) && member(IMPACT_LEVELS,v.impactLevel)
-    && text(v.conclusion,60) && text(v.reasoning,150);
+    && text(v.conclusion,60) && text(v.reasoning,150)
+    && (!hasDeepFields(v) || (isDeepMarketImpact(v) && !containsTradingInstruction([v.conclusion,v.reasoning])));
 }
 
 /** Validate before rendering; malformed network responses must never crash a news card. */
 export function isNewsAIResponse(v: unknown): v is NewsAIAnalysis {
   if (!object(v) || !['newsId','schemaVersion','modelVersion','disclaimer','analyzedAt'].every(k=>typeof v[k]==='string')) return false;
+  if(v.inputBasis!==undefined && !member(NEWS_INPUT_BASES,v.inputBasis)) return false;
+  if(v.errorCode!==undefined && (typeof v.errorCode!=='string' || !/^[a-z_]{1,40}$/.test(v.errorCode))) return false;
+  if(v.retryAt!==undefined && (typeof v.retryAt!=='string' || !Number.isFinite(Date.parse(v.retryAt)))) return false;
   if (v.status==='unavailable') return v.market===null && v.portfolio===null && typeof v.unavailableReason==='string';
   if (v.status!=='ok' || !isMarketImpact(v.market) || !object(v.portfolio)) return false;
   const p=v.portfolio;
   return member(['direct','indirect','none'],p.portfolioRelevance) && typeof p.portfolioConclusion==='string'
-    && Array.isArray(p.affectedHoldings) && p.affectedHoldings.every(h=>object(h) && typeof h.symbol==='string' && typeof h.id==='string');
+    && Array.isArray(p.affectedHoldings) && p.affectedHoldings.every(h=>object(h) && typeof h.symbol==='string' && typeof h.id==='string')
+    && (p.holdingImpacts===undefined || (Array.isArray(p.holdingImpacts) && p.holdingImpacts.every(h=>{
+      if(!object(h) || !text(h.name,80)) return false;
+      const {name:_,...impact}=h;
+      return isSecurityImpact(impact);
+    })));
 }

@@ -2,6 +2,8 @@ export interface ParsedFeedItem {
   title: string;
   link: string;
   summary: string;
+  rssContent?: string;
+  contentSnippet?: string;
   publishedAt: string; // ISO 8601, from the feed's own pubDate/published field
 }
 
@@ -38,10 +40,14 @@ export function parseFeed(xml: string): ParsedFeedItem[] {
   for (const block of blocks) {
     const title = extractTag(block, 'title');
     const link = extractLink(block);
-    const summary = extractTag(block, 'description') ?? extractTag(block, 'summary') ?? extractTag(block, 'content') ?? '';
+    const rssContent = stripHtml(extractTag(block, 'content:encoded') ?? extractTag(block, 'content') ?? '');
+    const contentSnippet = stripHtml(extractTag(block, 'contentSnippet') ?? '');
+    const summary = [extractTag(block, 'description'),extractTag(block, 'summary'),contentSnippet,rssContent].map(s=>stripHtml(s ?? '')).find(Boolean) ?? '';
     const publishedAt = toIso(extractTag(block, 'pubDate') ?? extractTag(block, 'published') ?? extractTag(block, 'updated'));
     if (!title || !link || !publishedAt) continue;
-    items.push({ title: stripHtml(title), link, summary: stripHtml(summary).slice(0, 400), publishedAt });
+    items.push({ title: stripHtml(title), link, summary: summary.slice(0, 400), publishedAt,
+      ...(rssContent?{rssContent:rssContent.slice(0,12000)}:{}),...(contentSnippet?{contentSnippet:contentSnippet.slice(0,4000)}:{}),
+    });
   }
   return items;
 }

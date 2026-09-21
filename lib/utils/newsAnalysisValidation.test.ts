@@ -20,14 +20,14 @@ test('initial panel renders closed and never fetches analysis',()=>{
 test('successful result separates market, inference and portfolio with safe links',()=>{
   assert.equal(isNewsAIResponse(result),true);
   const html=renderToStaticMarkup(createElement(NewsAIAnalysisContent,{result}));
-  for(const text of ['一般市場影響','與我的投資組合','文中提及','AI 推論可能影響','非原文點名','AI 分析，非投資建議','AI 推論可能有誤','無直接關聯']) assert.ok(html.includes(text));
+  for(const text of ['一般市場影響','我的投資組合影響','文中提及','AI 推論可能影響','非原文點名','AI 分析，非投資建議','AI 推論可能有誤','無直接關聯']) assert.ok(html.includes(text));
   assert.match(html,/href="\/stock\/NVDA"/);assert.match(html,/href="\/people#jensen-huang"/);
   assert.match(html,/impact-uncertain/);assert.doesNotMatch(html,/class="(?:up|down)"/);
 });
 test('loading and unavailable states retain disclaimer without empty result sections',()=>{
   for(const props of [{result:null,loading:true},{result:null,failed:true},{result:{...result,status:'unavailable',market:null,portfolio:null,unavailableReason:'今日 AI 分析次數已達上限'} as NewsAIAnalysis}]) {
     const html=renderToStaticMarkup(createElement(NewsAIAnalysisContent,props));
-    assert.match(html,/AI 分析，非投資建議/);assert.doesNotMatch(html,/一般市場影響|與我的投資組合/);
+    assert.match(html,/AI 分析，非投資建議/);assert.doesNotMatch(html,/一般市場影響|我的投資組合影響/);
     assert.match(html,/role="status"/);
   }
 });
@@ -61,7 +61,7 @@ test('HTTP 200 unavailable response offers retry without a transport failure',as
       const received=await requestAnalysis(result.newsId);
       const html=renderToStaticMarkup(createElement(NewsAIAnalysisContent,{result:received,failed:false,onRetry:()=>{}}));
       assert.match(html,/type="button"[^>]*>重試 AI 分析/);
-      assert.ok(html.includes(reason));assert.match(html,/15 分鐘內重試可能仍顯示相同結果/);
+      assert.ok(html.includes(reason));assert.match(html,/每日上限仍適用/);
       assert.match(html,/AI 分析，非投資建議/);
     }
   } finally {globalThis.fetch=previous;}

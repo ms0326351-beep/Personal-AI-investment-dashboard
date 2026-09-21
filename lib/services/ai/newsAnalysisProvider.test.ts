@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNewsAnalysisProvider, getNewsAIModel, DEFAULT_NEWS_AI_MODEL } from './newsAnalysisProvider';
 import type { NewsItem } from '../../types';
+import { deepFixture } from '../../utils/deepNewsAnalysis.fixture';
+import { NewsAnalysisError } from './newsAnalysisError';
 const item:NewsItem={id:'rss-test',title:'NVIDIA discusses AI',summary:'Jensen Huang discusses demand.',source:'Test RSS',publishedAt:'2026-09-14T00:00:00Z',relatedSymbols:['NVDA'],relatedPersonIds:['jensen-huang'],origin:'rss'};
 const people=[{id:'jensen-huang',name:'黃仁勳',title:'執行長',organization:'NVIDIA'}];
-const market={explicitlyMentionedSymbols:['NVDA'],inferredSymbols:['QQQ'],relatedPersonIds:['jensen-huang'],relatedTopics:['AI'],eventType:'product',impactDirection:'uncertain',impactLevel:'low',conclusion:'需求可能影響供應鏈。',reasoning:'需求→半導體→NVDA，仍需觀察採購落實。'};
+const market={...deepFixture,impactChain:deepFixture.impactChain.map(n=>({...n,basis:'inferred' as const})),explicitlyMentionedSymbols:['NVDA'],inferredSymbols:[],relatedPersonIds:['jensen-huang'],relatedTopics:['AI'],eventType:'product',impactDirection:'uncertain',impactLevel:'low',conclusion:'需求可能影響供應鏈。',reasoning:'需求→半導體→NVDA，仍需觀察採購落實。'};
 const response=(value:unknown)=>new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}]}));
 const provider=(fetcher:typeof fetch)=>createNewsAnalysisProvider({fetcher,apiKey:()=> 'test-only-key'});
 test('valid structured result including uncertain is returned',async()=>{
@@ -65,4 +67,28 @@ test('model environment override and blank default',()=>{
   const old=process.env.NEWS_AI_MODEL;
   try {process.env.NEWS_AI_MODEL=' custom-model ';assert.equal(getNewsAIModel(),'custom-model'); process.env.NEWS_AI_MODEL='';assert.equal(getNewsAIModel(),DEFAULT_NEWS_AI_MODEL);}
   finally {if(old===undefined) delete process.env.NEWS_AI_MODEL; else process.env.NEWS_AI_MODEL=old;}
+});
+
+test('HTTP errors retain status and classification, without automatic retries or upstream secrets',async()=>{
+  for(const [status,code] of [[429,'rate_limit'],[401,'configuration'],[400,'request_rejected'],[503,'upstream_unavailable']] as const) {
+    let calls=0;
+    await assert.rejects(provider(async()=>{calls++;return new Response('secret upstream',{status,headers:{'retry-after':'120'}})}).analyzeNews(item,people,[]),error=>{
+      assert.ok(error instanceof NewsAnalysisError);assert.equal(error.code,code);assert.equal(error.httpStatus,status);
+      if(status===429)assert.equal(error.retryDelaySeconds,120);
+      assert.doesNotMatch(JSON.stringify(error),/secret upstream/);return true;
+    });assert.equal(calls,1);
+  }
+});
+
+test('validation diagnostics identify bounded schema fields without generated text',async()=>{
+  for(const [value,code,field] of [
+    [{...market,securityImpacts:[{private:'secret-generated-text'}]},'validation','securityImpacts[0].symbol'],
+    [{...market,eventSummary:'作者建議買入 NVIDIA'},'output_guard','eventSummary'],
+    [{...market,reasoning:'字'.repeat(151)},'validation','reasoning'],
+  ] as const) {
+    await assert.rejects(provider(async()=>response(value)).analyzeNews(item,people,[]),error=>{
+      assert.ok(error instanceof NewsAnalysisError);assert.equal(error.code,code);assert.ok(error.fields.includes(field));
+      assert.doesNotMatch(JSON.stringify(error),/secret-generated-text|作者建議/);return true;
+    });
+  }
 });

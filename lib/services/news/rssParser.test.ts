@@ -34,3 +34,13 @@ test('invalid entries do not remove valid siblings; missing summary is allowed',
   const xml=`<item><title>Bad</title></item><item><title>Good</title><link>https://example.com</link><pubDate>${date}</pubDate></item>`;
   assert.equal(parseFeed(xml).length,1);assert.equal(parseFeed(xml)[0].summary,'');
 });
+test('preserves RSS content separately and empty descriptions fall through without inventing full text',()=>{
+  const [parsed]=parseFeed(item(`<title>News</title><link>https://example.com</link><pubDate>${date}</pubDate><description> </description><content:encoded><![CDATA[<p>Actual feed content</p>]]></content:encoded>`));
+  assert.equal(parsed.rssContent,'Actual feed content');assert.equal(parsed.summary,'Actual feed content');assert.ok(!('articleText' in parsed));
+});
+test('contentSnippet is retained when a source provides it; Yahoo style title-only remains valid',()=>{
+  const body=`<title>Market headline</title><link>https://example.com</link><pubDate>${date}</pubDate>`;
+  const [snippet]=parseFeed(item(body+'<contentSnippet>Feed snippet</contentSnippet>'));
+  assert.equal(snippet.summary,'Feed snippet');assert.equal(snippet.contentSnippet,'Feed snippet');
+  const [titleOnly]=parseFeed(item(body));assert.equal(titleOnly.summary,'');assert.equal(titleOnly.rssContent,undefined);
+});

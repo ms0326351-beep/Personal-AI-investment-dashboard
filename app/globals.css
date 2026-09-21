@@ -1,4 +1,54 @@
 @import "tailwindcss";
+/* Phase 3A.1: compact overview, then one full-analysis disclosure. */
+.news-ai-content .news-ai-card{background:#fff;border:1px solid #e0e6ef;border-radius:9px;padding:14px;margin-top:12px;min-width:0;font-size:12px;line-height:1.7;color:#364966}
+.news-ai-content .news-ai-card h4{font-size:14px;font-weight:700;color:#233c61;margin:0 0 10px}
+.news-ai-content .news-ai-card h5{font-size:12px;font-weight:600;color:#344b70;margin:0 0 6px}
+.news-ai-content .news-ai-card p{margin:7px 0}
+.news-ai-content .news-ai-overview{background:#edf3fc;border-color:#d5e0f1}
+.news-ai-summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.news-ai-summary-metrics>div{min-width:0}.news-ai-summary-metrics dt{font-size:11px;color:#61708a;margin-bottom:5px}
+.news-ai-summary-metrics dd{margin:0;font-size:14px;font-weight:650;color:#233c61}
+.news-ai-content .news-ai-key-conclusion{font-size:15px;line-height:1.65;font-weight:650;color:#203b63;padding-top:10px;border-top:1px solid #d5e0f1}
+.news-ai-content .news-ai-secondary{font-size:11px;color:#64738a;line-height:1.7}
+.news-ai-full-content{display:grid;gap:12px;min-width:0}.news-ai-content .news-ai-full-content>.news-ai-card{margin:0}
+.news-ai-full>summary{background:#eaf0fa;border-radius:6px;padding:12px!important;font-size:12px}
+.news-ai-full[open]>summary{margin-bottom:12px}
+.news-ai-transmission{display:flex;flex-wrap:wrap;gap:5px;list-style:none;margin:8px 0 0;padding:0;font-size:11px;color:#405777}
+.news-ai-transmission li{display:flex;align-items:center;gap:5px;min-width:0;max-width:100%}
+.news-ai-transmission li>span:first-child{background:#edf2f8;padding:3px 6px;border-radius:4px;min-width:0;overflow-wrap:anywhere}
+.news-ai-path-arrow{flex-shrink:0;color:#8394ac}
+.news-ai-holding-paths{display:grid;gap:14px;margin-top:18px;min-width:0}.news-ai-holding-paths>section{border-top:1px solid #dfe6f0;padding-top:14px;min-width:0}
+.news-ai-holding-paths blockquote{border-left:3px solid #ccd8ec;padding-left:10px;margin:8px 0;color:#64738a}
+.news-ai-holding-watch{padding-left:16px;list-style:disc;font-size:11px;color:#64738a}
+.news-ai-scenarios{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px}
+.news-ai-scenario{background:#f4f7fb;border:1px solid #dfe6ef;border-radius:6px;padding:12px;min-width:0}
+.news-ai-scenario-bull{border-top:3px solid #78a997}.news-ai-scenario-bear{border-top:3px solid #c991a4}.news-ai-scenario-base{border-top:3px solid #9cabc0}
+.news-ai-content .news-ai-limitations{background:transparent;border-color:#e5e9ef;color:#67768c;font-size:11px}
+.news-ai-content .news-ai-limitations h4,.news-ai-content .news-ai-limitations h5{font-size:12px;color:#64738a;font-weight:500}
+.news-ai-limitations ul{padding-left:16px;list-style:disc;margin:7px 0 12px}
+.news-ai-watch small{font-size:10px;color:#718199;margin-left:7px}
+.news-ai-content .news-ai-watch .news-ai-factor-name{font-weight:600;color:#344b70;background:transparent;padding:0;font-size:12px}
+.news-ai-brief-reason{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+@media(max-width:420px){.news-ai-content .news-ai-card{padding:11px}.news-ai-summary-metrics{gap:7px}.news-ai-summary-metrics dd{font-size:12px}.news-ai-summary-metrics dt{font-size:10px}}
+.news-ai-deep-details{margin-top:12px;border-top:1px solid #dde3ef;font-size:12px;color:#526078}
+.news-ai-deep-details>summary{cursor:pointer;padding:12px 0;color:#44597f;font-weight:600;min-height:44px}
+.news-ai-deep-details>summary:focus-visible{outline:3px solid #829aef;outline-offset:2px}
+.news-ai-deep-details p{margin:8px 0;line-height:1.7}
+.news-ai-chain{list-style:none;padding:0;margin:0;display:grid;gap:24px}
+.news-ai-chain li{position:relative;background:#fff;border:1px solid #dde3ef;border-left:3px solid #829aef;padding:10px 12px;border-radius:6px;min-width:0}
+.news-ai-chain li:not(:last-child)::after{content:'↓';position:absolute;bottom:-23px;left:18px;color:#657ba6}
+.news-ai-node-type{display:block;font-size:11px;color:#65708a;margin-bottom:5px}
+.news-ai-holdings{display:grid;gap:12px;margin-top:12px}
+.news-ai-holding{background:#fff;border:1px solid #dde3ef;border-radius:6px;padding:12px;min-width:0}
+.news-ai-holding h5,.news-ai-deep-details h5{font-size:13px;font-weight:600;margin:0 0 8px;color:#344b70}
+.news-ai-holding h5 a{text-decoration:underline;text-underline-offset:3px}
+.news-ai-metrics{display:flex;flex-wrap:wrap;gap:6px}
+.news-ai-metrics span,.news-ai-watch span{font-size:11px;display:inline-block;padding:3px 7px;border-radius:4px;background:#edf2fc;color:#3d557d}
+.news-ai-holding blockquote{border-left:3px solid #cbd7ee;margin:8px 0;padding-left:10px;line-height:1.7}
+.news-ai-watch{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.news-ai-watch li{min-width:0}.news-ai-watch p{margin:5px 0}
+.news-ai-scenarios dt{font-weight:600;color:#344b70;margin-top:12px}.news-ai-scenarios dd{margin:5px 0;line-height:1.7}
+.news-ai-uncertainties{padding-left:18px;list-style:disc;line-height:1.8}
 /* Market influence modules retain the existing dashboard palette. */
 /* AI sentiment is an inference, independent of stock-price .up/.down colors. */
 .news-ai-panel{margin-top:14px;border:1px solid #dde3ef;border-radius:6px;background:#f8f9fd;overflow-wrap:anywhere}.news-ai-panel>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:600;color:#44597f}.news-ai-panel>summary:focus-visible{outline:3px solid #829aef;outline-offset:2px}.news-ai-content{padding:0 12px 12px}.news-ai-content .news-ai-notice{font-size:11px;color:#59677e;margin:8px 0}.news-ai-section{border-top:1px solid #dde3ef;padding-top:12px;margin-top:12px}.news-ai-section h4{font-size:13px;margin:0 0 8px}.news-ai-section p{margin:8px 0;font-size:12px;color:#526078}.news-ai-tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.news-ai-tags a{font-size:11px;border:1px solid #cbd7ee;border-radius:4px;background:#edf2fc;color:#3d557d;padding:3px 7px}.news-ai-inferred a{border-style:dashed;border-color:#c9b9e3;background:#f4eefb;color:#6b478f}.impact-bullish,.impact-bearish,.impact-neutral,.impact-uncertain{display:inline-block;font-size:12px;border-radius:4px;padding:3px 7px}.impact-bullish{background:#e2f3eb;color:#245c4c}.impact-bearish{background:#fae8ed;color:#863c55}.impact-neutral{background:#fbf2d9;color:#745719}.impact-uncertain{background:#eceef3;color:#556176}

@@ -1,10 +1,25 @@
 import type { Holding } from '../types';
 import type { MarketImpactAnalysis, PortfolioImpactAnalysis } from '../types/newsAnalysis';
 import { isRelevantToUser, symbolRelation } from '../utils/relevance';
+import { newsSecurityContext } from '../data/newsSecurityContext';
 
-type ImpactInput = Pick<MarketImpactAnalysis, 'explicitlyMentionedSymbols' | 'inferredSymbols' | 'impactDirection' | 'impactLevel'>;
+type ImpactInput = Pick<MarketImpactAnalysis, 'explicitlyMentionedSymbols' | 'inferredSymbols' | 'impactDirection' | 'impactLevel' | 'securityImpacts'>;
 
 export function computeNewsPortfolioImpact(market: ImpactInput, holdings: Holding[], watchlist: string[]): PortfolioImpactAnalysis {
+  if(market.securityImpacts) {
+    // Evidence was constrained at the provider/cache boundary; only actual positions are selected here.
+    const relevant=market.securityImpacts.filter(s=>s.confidence!=='low');
+    const holdingImpacts=relevant.filter(s=>holdings.some(h=>h.symbol===s.symbol))
+      .map(s=>({...s,name:newsSecurityContext[s.symbol]?.name ?? s.symbol}));
+    const affectedHoldings=holdings.filter(h=>holdingImpacts.some(s=>s.symbol===h.symbol));
+    const watched=relevant.filter(s=>watchlist.includes(s.symbol));
+    const portfolioRelevance=holdingImpacts.some(s=>s.relationship==='direct')?'direct':holdingImpacts.length || watched.length?'indirect':'none';
+    const portfolioConclusion=holdingImpacts.length
+      ? `本事件與 ${holdingImpacts.map(s=>s.symbol).join('、')} 有具體傳導關聯；以下為可能的事件影響，非價格預測。`
+      : watched.length ? `與觀察清單 ${watched.map(s=>s.symbol).join('、')} 有關，目前持股未有足夠關聯依據。`
+      : '目前沒有足夠依據連結到你的持股／觀察清單；不代表確定沒有影響。';
+    return {portfolioRelevance,affectedHoldings,portfolioConclusion,holdingImpacts};
+  }
   const symbols = [...new Set([...market.explicitlyMentionedSymbols, ...market.inferredSymbols])];
   const affectedHoldings = holdings.filter(h => symbols.includes(h.symbol));
   const portfolioRelevance = affectedHoldings.length ? 'direct' : isRelevantToUser(symbols, holdings, watchlist) ? 'indirect' : 'none';

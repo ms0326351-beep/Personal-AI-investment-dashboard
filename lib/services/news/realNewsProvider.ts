@@ -75,6 +75,8 @@ export async function fetchRealNews(fetcher: typeof fetch = fetch, now: Date = n
       id: `rss-${hash(key)}`,
       title: item.title,
       summary: item.summary,
+      ...(item.rssContent?{rssContent:item.rssContent}:{}),
+      ...(item.contentSnippet?{contentSnippet:item.contentSnippet}:{}),
       source: source.label,
       url: item.link,
       publishedAt: item.publishedAt,

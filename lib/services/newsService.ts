@@ -7,6 +7,7 @@ import { dayTimeline } from '@/lib/mock/people';
 import type { DayTimelineEntry } from '@/lib/types/people';
 import { fetchRealNews, type SourceFetchResult } from './news/realNewsProvider';
 import { selectNewsPool } from './news/selectNewsPool';
+import { newsItemSnapshots } from './news/newsItemSnapshots';
 
 export interface NewsService {
   getNews(symbol?: string): Promise<NewsItem[]>;
@@ -32,6 +33,7 @@ export const newsService: NewsService = {
   async getNews(symbol) {
     await connection();
     const { items } = await realNews();
+    await newsItemSnapshots.remember(items);
     const pool = selectNewsPool(items, mockNewsWithOrigin);
     return symbol ? pool.filter(n => n.relatedSymbols.includes(symbol)) : pool;
   },

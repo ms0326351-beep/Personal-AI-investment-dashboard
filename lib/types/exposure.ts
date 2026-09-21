@@ -1,7 +1,7 @@
 /** Independent of news/AI schemas. Fractions are 0..1, never implied probabilities. */
-export const ENTITY_KINDS = ['Asset','Company','Sector','Industry','Theme','Technology','Commodity','Country','Currency','MacroFactor','Policy','FutureDemand','EmergingTechnology','WeakSignal','Bottleneck','CapacityConstraint','DemandDriver'] as const;
+export const ENTITY_KINDS = ['Asset','Company','Sector','Industry','SubIndustry','Theme','Technology','Commodity','Country','Currency','MacroFactor','Policy','FutureDemand','EmergingTechnology','WeakSignal','Bottleneck','CapacityConstraint','DemandDriver'] as const;
 export type EntityKind = typeof ENTITY_KINDS[number];
-export const RELATIONSHIP_TYPES = ['SUPPLIES','CUSTOMER_OF','DEPENDS_ON','COMPETES_WITH','EXPOSED_TO','BENEFITS_FROM','HURT_BY','ENABLED_BY','CONSTRAINED_BY','PART_OF'] as const;
+export const RELATIONSHIP_TYPES = ['SUPPLIES','CUSTOMER_OF','DEPENDS_ON','COMPETES_WITH','EXPOSED_TO','BENEFITS_FROM','HURT_BY','ENABLED_BY','CONSTRAINED_BY','PART_OF','ISSUED_BY'] as const;
 export type RelationshipType = typeof RELATIONSHIP_TYPES[number];
 export const EXPOSURE_DIMENSIONS = ['sector','industry','geographic','currency','commodity','interestRate','policy','technology','theme'] as const;
 export type ExposureDimension = typeof EXPOSURE_DIMENSIONS[number];

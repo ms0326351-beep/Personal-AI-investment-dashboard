@@ -1,5 +1,6 @@
 import type { Holding } from './index';
 import type { DataStatus, ExposureConcentration, ExposureCoverage, ExposureDimension, ExposurePath } from './exposure';
+import type { EtfLookThroughSummary } from './etfExposure';
 
 export interface ExposurePosition {
   id: string;
@@ -31,6 +32,8 @@ export interface PortfolioExposureSummary {
     concentration?: ExposureConcentration;
   }>;
   truncated: boolean;
+  /** Opt-in ETF extension; absent for legacy 3B.1 callers. */
+  lookThrough?: EtfLookThroughSummary;
 }
 /** Explicit mapping avoids assuming a ticker is globally unique or inventing quotes/FX. */
 export type LegacyExposureMapping = Record<Holding['id'], Omit<ExposurePosition, 'id'>>;

@@ -3,7 +3,7 @@ import type { ExposureDataset, ExposureDimension, ExposureEntity } from '../type
 import type { ExposurePortfolioSnapshot } from '../types/portfolioExposure';
 
 export const dimensionKinds: Record<ExposureDimension, ExposureEntity['kind'][]> = {
-  sector:['Sector'], industry:['Industry'], geographic:['Country'], currency:['Currency'],
+  sector:['Sector'], industry:['Industry','SubIndustry'], geographic:['Country'], currency:['Currency'],
   commodity:['Commodity'], interestRate:['MacroFactor'], policy:['Policy'],
   technology:['Technology','EmergingTechnology'], theme:['Theme'],
 };
@@ -49,6 +49,7 @@ export function validateExposureDataset(dataset: ExposureDataset): void {
     seen.set(edge.id,serialized);
     requireValid(entities.has(edge.sourceEntityId) && entities.has(edge.targetEntityId),'relationship endpoint');
     requireValid(RELATIONSHIP_TYPES.includes(edge.type) && ['DIRECT','INDIRECT'].includes(edge.nature),'relationship type/nature');
+    if(edge.type==='ISSUED_BY') requireValid(dataset.entities.find(e=>e.id===edge.sourceEntityId)!.kind==='Asset' && dataset.entities.find(e=>e.id===edge.targetEntityId)!.kind==='Company' && edge.nature==='DIRECT' && !edge.dimension && !edge.measurement,'issuer identity');
     requireValid(levels.includes(edge.strength) && levels.includes(edge.confidence),'strength/confidence');
     requireValid(['FACT','REPORTED','INFERRED','HYPOTHESIS','SPECULATIVE'].includes(edge.claim),'claim');
     requireValid(edge.nature!=='INDIRECT' || !['FACT','REPORTED'].includes(edge.claim),'indirect factual claim');
@@ -61,7 +62,7 @@ export function validateExposureDataset(dataset: ExposureDataset): void {
     if (edge.measurement) {
       const m=edge.measurement;
       requireValid(['positionAllocation','revenueShare'].includes(m.basis) && ['known','estimated'].includes(m.quality) && Number.isFinite(m.fraction) && m.fraction>=0 && m.fraction<=1 && validDate(m.asOf),'measurement');
-      requireValid(m.basis!=='positionAllocation' || (edge.nature==='DIRECT' && !!edge.dimension && dataset.entities.find(e=>e.id===edge.sourceEntityId)!.kind==='Asset'),'allocation scope');
+      requireValid(m.basis!=='positionAllocation' || (edge.nature==='DIRECT' && !!edge.dimension && ['Asset','Company'].includes(dataset.entities.find(e=>e.id===edge.sourceEntityId)!.kind)),'allocation scope');
     }
   }
 }

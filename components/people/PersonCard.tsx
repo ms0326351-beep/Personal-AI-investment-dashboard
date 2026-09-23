@@ -18,6 +18,6 @@ export function PersonCard({summary,holdings,watchlist,compact=false}:{summary:P
     <div className="person-identity"><span className="person-avatar" aria-hidden="true">{person.name.slice(0,2)}</span><div><h3>{person.name}</h3><p>{person.title} · {person.organization}</p></div></div>
     <div className="person-badges">{relevant&&<span className="relevance-badge">與我相關</span>}<span>● 影響程度：{impactLabels[person.currentImpactLevel]}</span></div>
     {event?<><h4 className="person-headline">{event.headline}</h4><time className="person-time" dateTime={event.occurredAt}>{event.occurredAt.slice(0,10)} {event.occurredAt.slice(11,16)}（台北）· 模擬資料</time><div className="person-direction"><span className={directions[event.impactDirection][0]}>{directions[event.impactDirection][1]}</span><span>{event.affectedMarkets.join(' / ')}</span></div><p className="eyebrow">事件 → 可能影響標的</p><SymbolLinks symbols={event.affectedSymbols} holdings={holdings} watchlist={watchlist}/></>:<p className="muted">暫無人物事件</p>}
-    {compact&&<Link className="text-link person-more" href={`/people#${person.id}`}>前往關鍵人物 →</Link>}
+    {compact?<Link className="text-link person-more" href={`/people#${person.id}`}>前往關鍵人物 →</Link>:<Link className="text-link person-more" href={`/people/${encodeURIComponent(person.id)}`}>人物情報詳情 →</Link>}
   </article>;
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { NewsExposurePanel } from './NewsExposurePanel';
 import Link from 'next/link';
 import type { NewsAIAnalysis } from '@/lib/types/newsAnalysis';
 import { peopleRegistry } from '@/lib/data/peopleRegistry';
@@ -32,6 +33,7 @@ export function NewsAIAnalysisPanel({newsId}:{newsId:string}) {
   const [loading,setLoading]=useState(false);
   const [result,setResult]=useState<NewsAIAnalysis|null>(null);
   const [failed,setFailed]=useState(false);
+  const [exposureActive,setExposureActive]=useState(false);
   async function loadAnalysis(retry=false) {
     // Guard immediately, before React renders the disabled retry button.
     if(busy.current) return;
@@ -39,14 +41,17 @@ export function NewsAIAnalysisPanel({newsId}:{newsId:string}) {
     try {setResult(await requestAnalysis(newsId,retry))} catch {setFailed(true)} finally {busy.current=false; setLoading(false)}
   }
   return <details className="news-ai-panel" onToggle={event=>{
-    if(event.target===event.currentTarget && event.currentTarget.open && !started.current) void loadAnalysis();
+    if(event.target===event.currentTarget && event.currentTarget.open) {
+      setExposureActive(true);
+      if(!started.current) void loadAnalysis();
+    }
   }}>
     <summary>AI 影響分析 ▾</summary>
-    <NewsAIAnalysisContent result={result} loading={loading} failed={failed} onRetry={()=>void loadAnalysis(true)}/>
+    <NewsAIAnalysisContent result={result} loading={loading} failed={failed} onRetry={()=>void loadAnalysis(true)} intelligence={<NewsExposurePanel key={newsId} newsId={newsId} active={exposureActive}/>}/>
   </details>;
 }
 
-export function NewsAIAnalysisContent({result,loading=false,failed=false,onRetry}:{result:NewsAIAnalysis|null;loading?:boolean;failed?:boolean;onRetry?:()=>void}) {
+export function NewsAIAnalysisContent({result,loading=false,failed=false,onRetry,intelligence}:{result:NewsAIAnalysis|null;loading?:boolean;failed?:boolean;onRetry?:()=>void;intelligence?:ReactNode}) {
   const [clock,setClock]=useState(()=>Date.now());
   const retryAt=Date.parse(result?.retryAt ?? '');
   const remaining=Number.isFinite(retryAt)?Math.max(0,Math.ceil((retryAt-clock)/1000)):0;
@@ -68,6 +73,7 @@ export function NewsAIAnalysisContent({result,loading=false,failed=false,onRetry
         <p className="news-ai-notice" role="note">{newsInputNotice(result?.inputBasis)}</p>
         <InvestmentSummary market={market} portfolio={portfolio}/>
         <PortfolioOverview portfolio={portfolio}/>
+        {intelligence}
         <WatchFactors factors={market.watchFactors} compact/>
         <details className="news-ai-deep-details news-ai-full"><summary>查看完整深度分析</summary>
         <div className="news-ai-full-content">
@@ -91,5 +97,6 @@ export function NewsAIAnalysisContent({result,loading=false,failed=false,onRetry
         </details>
         <p className="news-ai-notice">{result?.disclaimer}</p>
       </>}
+      {!market && intelligence}
     </div>;
 }

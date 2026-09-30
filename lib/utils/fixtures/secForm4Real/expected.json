@@ -1,0 +1,585 @@
+[
+  {
+    "file": "oracle.xml",
+    "issuerCik": "0001341439",
+    "issuer": "ORACLE CORP",
+    "ticker": "ORCL",
+    "form": "4",
+    "period": "2025-09-15",
+    "originalSubmission": null,
+    "schemaVersion": "X0508",
+    "owners": [
+      {
+        "cik": "0001952913",
+        "name": "Levey Stuart",
+        "director": null,
+        "officer": true,
+        "tenPercentOwner": null,
+        "other": null,
+        "officerTitle": "EVP, Chief Legal Officer",
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2025-09-15",
+        "code": "M",
+        "swap": false,
+        "shares": 26337.0,
+        "price": 0.0,
+        "direction": "A",
+        "holdingsAfter": 39952.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": []
+      },
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2025-09-15",
+        "code": "F",
+        "swap": false,
+        "shares": 12405.0,
+        "price": 292.18,
+        "direction": "D",
+        "holdingsAfter": 27547.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "Shares withheld for payment of tax liability upon vesting of restricted stock units."
+      },
+      {
+        "id": "F2",
+        "text": "Each restricted stock unit represents the right to receive, at settlement, one share of common stock."
+      },
+      {
+        "id": "F3",
+        "text": "The restricted stock units vest in four equal annual installments, beginning on the first anniversary of the date of grant."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 1,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  },
+  {
+    "file": "abm-amendment.xml",
+    "issuerCik": "0000771497",
+    "issuer": "ABM INDUSTRIES INC /DE/",
+    "ticker": "ABM",
+    "form": "4/A",
+    "period": "2026-01-08",
+    "originalSubmission": "2026-01-12",
+    "schemaVersion": "X0508",
+    "owners": [
+      {
+        "cik": "0001669091",
+        "name": "JACOBSEN RENE",
+        "director": null,
+        "officer": true,
+        "tenPercentOwner": null,
+        "other": null,
+        "officerTitle": "EVP & Chief Operating Officer",
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-01-10",
+        "code": "F",
+        "swap": false,
+        "shares": 1007.0,
+        "price": 44.69,
+        "direction": "D",
+        "holdingsAfter": 94766.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1",
+          "F2"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "On January 12, 2026, the reporting person filed a Form 4 which inadvertently omitted an additional 1,007 shares withheld to satisfy tax obligations in connection with the vesting of restricted stock unit awards and relative-total stockholder return modified performance shares."
+      },
+      {
+        "id": "F2",
+        "text": "The error described in footnote 1 also affected certain  reported total holdings in the original Form 4 and a subsequent Form 4 filed on January 15, 2026."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  },
+  {
+    "file": "ault-amendment.xml",
+    "issuerCik": "0000896493",
+    "issuer": "Hyperscale Data, Inc.",
+    "ticker": "GPUS",
+    "form": "4/A",
+    "period": "2026-09-09",
+    "originalSubmission": "2026-09-11",
+    "schemaVersion": "X0609",
+    "owners": [
+      {
+        "cik": "0001212502",
+        "name": "AULT MILTON C III",
+        "director": true,
+        "officer": true,
+        "tenPercentOwner": true,
+        "other": false,
+        "officerTitle": "Executive Chairman",
+        "otherText": null
+      },
+      {
+        "cik": "0001734770",
+        "name": "Ault & Company, Inc.",
+        "director": false,
+        "officer": false,
+        "tenPercentOwner": true,
+        "other": true,
+        "officerTitle": null,
+        "otherText": "See Remark"
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Class A Common Stock",
+        "transactionDate": "2026-09-08",
+        "code": "P",
+        "swap": false,
+        "shares": 80200.0,
+        "price": 0.189,
+        "direction": "A",
+        "holdingsAfter": 759700.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1"
+        ]
+      },
+      {
+        "securityTitle": "Class A Common Stock",
+        "transactionDate": "2026-09-09",
+        "code": "P",
+        "swap": false,
+        "shares": 5500.0,
+        "price": 0.1887,
+        "direction": "A",
+        "holdingsAfter": 765200.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F2"
+        ]
+      },
+      {
+        "securityTitle": "Class A Common Stock",
+        "transactionDate": "2026-09-10",
+        "code": "P",
+        "swap": false,
+        "shares": 22800.0,
+        "price": 0.1857,
+        "direction": "A",
+        "holdingsAfter": 788000.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F3"
+        ]
+      },
+      {
+        "securityTitle": "Class A Common Stock",
+        "transactionDate": "2026-09-11",
+        "code": "P",
+        "swap": false,
+        "shares": 150000.0,
+        "price": 0.1892,
+        "direction": "A",
+        "holdingsAfter": 2763692.0,
+        "ownership": "I",
+        "nature": "By Ault & Company, Inc.",
+        "footnoteIds": [
+          "F4"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "The common stock was purchased by the reporting person in open market transactions on the transaction date, with a volume weighted average purchase price of $0.1890. The range of purchase prices on the transaction date was $0.1874 to $0.1934 per share. The reporting person undertakes to provide, upon request by the SEC staff, the issuer, or a security holder of the issuer, full information regarding the number of shares purchased at each price."
+      },
+      {
+        "id": "F2",
+        "text": "The common stock was purchased by the reporting person in open market transactions on the transaction date, with a volume weighted average purchase price of $0.1887. The range of purchase prices on the transaction date was $0.1878 to $0.1893 per share. The reporting person undertakes to provide, upon request by the SEC staff, the issuer, or a security holder of the issuer, full information regarding the number of shares purchased at each price."
+      },
+      {
+        "id": "F3",
+        "text": "The common stock was purchased by the reporting person in open market transactions on the transaction date, with a volume weighted average purchase price of $0.1857. The range of purchase prices on the transaction date was $0.1852 to $0.1898 per share. The reporting person undertakes to provide, upon request by the SEC staff, the issuer, or a security holder of the issuer, full information regarding the number of shares purchased at each price."
+      },
+      {
+        "id": "F4",
+        "text": "Milton C. Ault, III, is the Chief Executive Officer of Ault & Company, Inc. (\"Ault & Co.\") and is deemed to beneficially own the shares held by Ault & Co."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 2
+    }
+  },
+  {
+    "file": "docusign.xml",
+    "issuerCik": "0001261333",
+    "issuer": "DOCUSIGN, INC.",
+    "ticker": "DOCU",
+    "form": "4",
+    "period": "2026-09-15",
+    "originalSubmission": null,
+    "schemaVersion": "X0609",
+    "owners": [
+      {
+        "cik": "0001796825",
+        "name": "GRAYSON BLAKE JEFFREY",
+        "director": false,
+        "officer": true,
+        "tenPercentOwner": false,
+        "other": false,
+        "officerTitle": "Chief Financial Officer",
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-15",
+        "code": "M",
+        "swap": false,
+        "shares": 44234.0,
+        "price": 0.0,
+        "direction": "A",
+        "holdingsAfter": 125663.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": []
+      },
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-15",
+        "code": "F",
+        "swap": false,
+        "shares": 17730.0,
+        "price": 0.0,
+        "direction": "D",
+        "holdingsAfter": 107933.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "Represents shares withheld by the Issuer to satisfy a tax obligation realized by the Reporting Person upon the vesting and settlement of restricted stock units (\"RSUs\") and  performance-vested restricted stock unit (\"PSUs\")."
+      },
+      {
+        "id": "F2",
+        "text": "Each restricted stock unit (\"RSU\") represents a contingent right to receive one share of the Issuer's common stock."
+      },
+      {
+        "id": "F3",
+        "text": "The RSUs will vest in sixteen equal quarterly installments over four years, with a vesting commencement date of June 10, 2023, in each case subject to the Reporting Person being a service provider through each such date. The RSUs are subject to accelerated vesting in the event of a termination of employment of the Reporting Person including under certain circumstances following a change in control of the Issuer"
+      },
+      {
+        "id": "F4",
+        "text": "The RSUs do not expire; they either vest or are canceled prior to vesting date."
+      },
+      {
+        "id": "F5",
+        "text": "The RSUs will vest in equal quarterly installments over four years, with a vesting commencement date of May 10, 2024, in each case subject to the reporting person being a service provider through such date."
+      },
+      {
+        "id": "F6",
+        "text": "The RSUs will vest quarterly over a four year period commencing May 10, 2025, with 40% vesting during year 1, 35% vesting during year 2, 15% vesting during year 3, and 10% vesting during year 4, in each case subject to the Reporting Person being a service provider through each such date."
+      },
+      {
+        "id": "F7",
+        "text": "The RSUs will vest in equal quarterly installments over three years, with a vesting commencement date of May 10, 2026, in each case subject to the Reporting Person being a service provider through such date."
+      },
+      {
+        "id": "F8",
+        "text": "Each performance stock unit (\"PSU\") represents a contingent right to receive one share of the Issuer's common stock."
+      },
+      {
+        "id": "F9",
+        "text": "The PSUs will vest depending on the Company's subscription revenue for the twelve-month period ended January 31, 2025 (the \"FY25 Performance Period\"). The maximum number of subscription revenue-based PSUs that may vest is capped at 200% of the target number of subscription revenue-based PSUs. To the extent achieved, 1/3 of any achieved subscription revenue-based PSUs will vest following the one-year anniversary of the date of grant and the balance will vest in eight equal quarterly installments thereafter, subject to continued service with certain limited exceptions."
+      },
+      {
+        "id": "F10",
+        "text": "The PSUs will vest depending on the Company's free cash flow for the FY25 Performance Period. The maximum number of free cash flow-based PSUs that may vest is capped at 200% of the target number of free cash flow-based PSUs. To the extent achieved, 1/3 of any achieved free cash flow-based PSUs will vest following the one-year anniversary of the date of grant and the balance will vest in eight equal quarterly installments thereafter, subject to continued service with certain limited exceptions."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 6,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  },
+  {
+    "file": "nvidia-gift.xml",
+    "issuerCik": "0001045810",
+    "issuer": "NVIDIA CORP",
+    "ticker": "NVDA",
+    "form": "4",
+    "period": "2025-02-28",
+    "originalSubmission": null,
+    "schemaVersion": "X0508",
+    "owners": [
+      {
+        "cik": "0001588670",
+        "name": "Kress Colette",
+        "director": false,
+        "officer": true,
+        "tenPercentOwner": false,
+        "other": false,
+        "officerTitle": "EVP & Chief Financial Officer",
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common",
+        "transactionDate": "2025-02-28",
+        "code": "G",
+        "swap": false,
+        "shares": 64080.0,
+        "price": 0.0,
+        "direction": "D",
+        "holdingsAfter": 3059644.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1",
+          "F2",
+          "F3"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "Gift without consideration."
+      },
+      {
+        "id": "F2",
+        "text": "Includes 466 shares purchased pursuant to the Issuer's Employee Stock Purchase Plan on February 28, 2025."
+      },
+      {
+        "id": "F3",
+        "text": "Excludes 183,060 shares gifted to Trust and 45,254 shares gifted to Limited Liability Company."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 6
+    }
+  },
+  {
+    "file": "docusign-sale.xml",
+    "issuerCik": "0001261333",
+    "issuer": "DOCUSIGN, INC.",
+    "ticker": "DOCU",
+    "form": "4",
+    "period": "2026-09-04",
+    "originalSubmission": null,
+    "schemaVersion": "X0609",
+    "owners": [
+      {
+        "cik": "0001796825",
+        "name": "GRAYSON BLAKE JEFFREY",
+        "director": false,
+        "officer": true,
+        "tenPercentOwner": false,
+        "other": false,
+        "officerTitle": "Chief Financial Officer",
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-04",
+        "code": "S",
+        "swap": false,
+        "shares": 30000.0,
+        "price": 70.0,
+        "direction": "D",
+        "holdingsAfter": 96429.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1"
+        ]
+      },
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-08",
+        "code": "S",
+        "swap": false,
+        "shares": 11550.0,
+        "price": 65.25,
+        "direction": "D",
+        "holdingsAfter": 84879.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F2"
+        ]
+      },
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-08",
+        "code": "S",
+        "swap": false,
+        "shares": 3450.0,
+        "price": 66.64,
+        "direction": "D",
+        "holdingsAfter": 81429.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F3"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "The transaction was effected pursuant to a Rule 10b5-1 plan adopted by the Reporting Person."
+      },
+      {
+        "id": "F2",
+        "text": "The shares were sold at prices ranging from $64.91 to $65.85. The Reporting Person will provide upon request to the SEC, the Issuer or security holder of the Issuer, full information regarding the\nnumber of shares sold at each separate price."
+      },
+      {
+        "id": "F3",
+        "text": "The shares were sold at prices ranging from $65.96 to $66.87. The Reporting Person will provide upon request to the SEC, the Issuer or security holder of the Issuer, full information regarding the\nnumber of shares sold at each separate price."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  },
+  {
+    "file": "docusign-director-sale.xml",
+    "issuerCik": "0001261333",
+    "issuer": "DOCUSIGN, INC.",
+    "ticker": "DOCU",
+    "form": "4",
+    "period": "2026-09-14",
+    "originalSubmission": null,
+    "schemaVersion": "X0609",
+    "owners": [
+      {
+        "cik": "0001753557",
+        "name": "Marrs Anna",
+        "director": true,
+        "officer": false,
+        "tenPercentOwner": false,
+        "other": false,
+        "officerTitle": null,
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-09-14",
+        "code": "S",
+        "swap": false,
+        "shares": 548.0,
+        "price": 67.0,
+        "direction": "D",
+        "holdingsAfter": 13525.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": [
+          "F1"
+        ]
+      }
+    ],
+    "footnotes": [
+      {
+        "id": "F1",
+        "text": "The transaction was effected pursuant to a Rule 10b5-1 plan adopted by the Reporting Person."
+      }
+    ],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  },
+  {
+    "file": "victoria-amendment.xml",
+    "issuerCik": "0001856437",
+    "issuer": "Victoria's Secret & Co.",
+    "ticker": "VSCO",
+    "form": "4/A",
+    "period": "2026-04-02",
+    "originalSubmission": "2026-04-06",
+    "schemaVersion": "X0609",
+    "owners": [
+      {
+        "cik": "0001776285",
+        "name": "Sheehan Anne",
+        "director": true,
+        "officer": null,
+        "tenPercentOwner": null,
+        "other": null,
+        "officerTitle": null,
+        "otherText": null
+      }
+    ],
+    "rows": [
+      {
+        "securityTitle": "Common Stock",
+        "transactionDate": "2026-04-02",
+        "code": "P",
+        "swap": false,
+        "shares": 633.0,
+        "price": 45.86,
+        "direction": "A",
+        "holdingsAfter": 30052.0,
+        "ownership": "D",
+        "nature": null,
+        "footnoteIds": []
+      }
+    ],
+    "footnotes": [],
+    "unsupported": {
+      "derivativeTransactions": 0,
+      "derivativeHoldings": 0,
+      "nonDerivativeHoldings": 0
+    }
+  }
+]

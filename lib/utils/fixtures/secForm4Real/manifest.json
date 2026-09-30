@@ -1,0 +1,98 @@
+[
+  {
+    "file": "oracle.xml",
+    "issuer": "ORACLE CORP",
+    "accession": "0001341439-25-000016",
+    "documentType": "4",
+    "filedAt": "2025-09-17",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1341439/000134143925000016/form4.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1341439/000134143925000016/0001341439-25-000016-index.htm",
+    "retrievedAt": "2026-09-29T09:01:56Z",
+    "reason": "M/F with derivative rows",
+    "sha256": "9829d5e6816e6a282b99f9c1523437fdaa307e5641cafe2defa1e5250827a8a2"
+  },
+  {
+    "file": "abm-amendment.xml",
+    "issuer": "ABM INDUSTRIES INC /DE/",
+    "accession": "0001225208-26-000793",
+    "documentType": "4/A",
+    "filedAt": "2026-01-23",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/771497/000122520826000793/doc4a.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/771497/000122520826000793/0001225208-26-000793-index.htm",
+    "retrievedAt": "2026-09-29T09:01:59Z",
+    "reason": "Amended tax withholding and omitted role flags",
+    "sha256": "d96c9fc2e9709d65890223acba97925603015df0d00b0dfdf6bec7855120669d"
+  },
+  {
+    "file": "ault-amendment.xml",
+    "issuer": "Hyperscale Data, Inc.",
+    "accession": "0001214659-26-011678",
+    "documentType": "4/A",
+    "filedAt": "2026-09-14",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1212502/000121465926011678/doc4a.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1212502/000121465926011678/0001214659-26-011678-index.htm",
+    "retrievedAt": "2026-09-29T09:02:01Z",
+    "reason": "Joint owners, ten-percent ownership, P, price footnotes, newer schema",
+    "sha256": "6e6f2a4f1587bbdcec9b4ce76bb2126461676f05c788eaba795b0694c74f9a41"
+  },
+  {
+    "file": "docusign.xml",
+    "issuer": "DOCUSIGN, INC.",
+    "accession": "0001796825-26-000018",
+    "documentType": "4",
+    "filedAt": "2026-09-16",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1796825/000179682526000018/wk-form4_1789597843.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1796825/000179682526000018/0001796825-26-000018-index.htm",
+    "retrievedAt": "2026-09-29T09:02:03Z",
+    "reason": "Officer M/F and six derivative exercise rows",
+    "sha256": "6b5f2f3509185cc5cac75c4796a707720a800e2480422f550a8b28ab0c0bbc6f"
+  },
+  {
+    "file": "nvidia-gift.xml",
+    "issuer": "NVIDIA CORP",
+    "accession": "0001045810-25-000027",
+    "documentType": "4",
+    "filedAt": "2025-03-04",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000027/wk-form4_1741125282.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000027/0001045810-25-000027-index.htm",
+    "retrievedAt": "2026-09-29T09:02:05Z",
+    "reason": "Gift must not become ordinary sale",
+    "sha256": "aaaf112a41dd3a731b3d2a80555d4afcc6463792f8a494ef4a4d4c6bcf5d4806"
+  },
+  {
+    "file": "docusign-sale.xml",
+    "issuer": "DOCUSIGN, INC.",
+    "accession": "0001796825-26-000014",
+    "documentType": "4",
+    "filedAt": "2026-09-08",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1796825/000179682526000014/wk-form4_1788911028.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1796825/000179682526000014/0001796825-26-000014-index.htm",
+    "retrievedAt": "2026-09-29T09:02:08Z",
+    "reason": "Multiple S rows and weighted price footnotes",
+    "sha256": "5bd77bb65f8367551699721756448b43510a735ee9262e695ce8b3ddd77acb2a"
+  },
+  {
+    "file": "docusign-director-sale.xml",
+    "issuer": "DOCUSIGN, INC.",
+    "accession": "0001261333-26-000101",
+    "documentType": "4",
+    "filedAt": "2026-09-15",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1261333/000126133326000101/wk-form4_1789507871.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1261333/000126133326000101/0001261333-26-000101-index.htm",
+    "retrievedAt": "2026-09-29T09:02:10Z",
+    "reason": "Director sale and optional containers",
+    "sha256": "fdd5b5bba8ba009a349077f7548c619c2b3812e1ed0e0059bc40ade8a7ae6ce6"
+  },
+  {
+    "file": "victoria-amendment.xml",
+    "issuer": "Victoria's Secret & Co.",
+    "accession": "0001225208-26-004410",
+    "documentType": "4/A",
+    "filedAt": "2026-04-06",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1856437/000122520826004410/doc4a.xml",
+    "filingUrl": "https://www.sec.gov/Archives/edgar/data/1856437/000122520826004410/0001225208-26-004410-index.htm",
+    "retrievedAt": "2026-09-29T09:02:58Z",
+    "reason": "Director purchase amendment correcting share count in remarks; empty footnotes and derivative table",
+    "sha256": "e7e4eb0fae8fabe2003ab32775c52e9b973e8c286c337eab91fe15623b5b6237"
+  }
+]

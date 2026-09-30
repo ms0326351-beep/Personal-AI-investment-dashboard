@@ -158,8 +158,11 @@ export function createSecClient(options: SecClientOptions = {}, dependencies?: S
     return { ...metadata, source: 'SEC', filingKey: secFilingKey(metadata.accessionNumber), sourceUrl,
       retrievedAt: new Date(runtime.clock.now()).toISOString(), rawXml };
   }
+  async function fetchResolvedForm4Document(input: SecForm4Metadata) {
+    return resolveOwnershipXmlDocument(input, request, runtime.clock.now);
+  }
   async function fetchAndParseForm4(input: SecForm4Metadata) {
-    const envelope = await resolveOwnershipXmlDocument(input, request, runtime.clock.now);
+    const envelope = await fetchResolvedForm4Document(input);
     const parsed = parseForm4Xml(envelope.rawXml, {
       filingId: envelope.accessionNumber, accessionNumber: envelope.accessionNumber,
       sourceIdentifier: envelope.sourceUrl, sourceUrl: envelope.sourceUrl, filingUrl: envelope.sourceUrl,
@@ -171,5 +174,5 @@ export function createSecClient(options: SecClientOptions = {}, dependencies?: S
     }
     return { envelope, parsed, error: null };
   }
-  return { fetchCompanySubmissions, fetchForm4Document, fetchAndParseForm4 };
+  return { fetchCompanySubmissions, fetchForm4Document, fetchResolvedForm4Document, fetchAndParseForm4 };
 }

@@ -26,6 +26,9 @@ This module does not load or modify env files or Git identity.
   successful retrieval with unavailable/mismatched parser output returns the raw
   envelope, parsed diagnostics and a PARSE_ERROR. A partial parse remains partial.
   Consumers must check error/status before using parsed data.
+- `fetchResolvedForm4Document(metadata)`: the same bounded index resolver without
+  parser invocation, for orchestration that hashes XML before parsing. No new URL
+  input, network policy or production route is introduced.
 
 CIK identifies the requested archive/submissions context, not verified ownership
 or issuer identity. Filing identity is `sec:` plus exact dashed accession.

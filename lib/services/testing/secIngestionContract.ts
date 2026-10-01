@@ -29,6 +29,7 @@ function envelope(xml:string,m:SecForm4Metadata):SecResolvedXmlEnvelope {
     sourceUrl:base+'fixture.xml',presentationUrl:secDocumentUrl(metadata),indexUrl:base+'index.json',
     resolvedDocument:'fixture.xml',resolutionMethod:'index_primary_basename',retrievedAt:time};
 }
+export {input as secContractInput,envelope as secContractEnvelope};
 
 /** Shared, offline contract registration. Future PostgreSQL/Neon adapters reuse
  * these tests with a new harness, including real rollback/count/fault assertions.

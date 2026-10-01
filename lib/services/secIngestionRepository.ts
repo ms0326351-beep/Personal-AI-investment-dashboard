@@ -5,16 +5,8 @@ import { secPersistenceAmounts } from '../utils/secPersistenceAmounts';
 
 export const isIngested = (record: SecIngestionRecord): boolean => record.state === 'PARSED' || record.state === 'PARTIAL';
 
-/** Local/test storage only. One synchronous map replacement publishes the whole snapshot.
- * No mutable references escape the adapter, and no await separates comparison from insert.
- */
-export class InMemorySecIngestionRepository implements SecIngestionRepository {
-  private readonly records = new Map<string, SecIngestionRecord>();
-  async getFilingByAccession(accessionNumber: string): Promise<SecIngestionRecord | null> {
-    const record = this.records.get(secFilingKey(accessionNumber));
-    return record ? structuredClone(record) : null;
-  }
-  async saveIngestion(input: SecIngestionRecord): Promise<SecIngestionSaveResult> {
+/** Shared domain validation, independent of storage implementation. */
+export function validateSecIngestionSnapshot(input: SecIngestionRecord): SecIngestionRecord {
     const record = structuredClone(input);
     const key = secFilingKey(record.accessionNumber);
     validateSecMetadata(record.metadata);
@@ -30,14 +22,27 @@ export class InMemorySecIngestionRepository implements SecIngestionRepository {
         !/^[a-f0-9]{64}$/.test(record.provenance.rawXmlHash)))) throw new Error('Invalid ingestion snapshot');
     for (const [i, row] of record.transactions.entries()) {
       if (row.id !== `${key}:non_derivative:${i+1}` || row.accessionNumber !== record.accessionNumber ||
-        row.table !== 'non_derivative' || row.rowIndex !== i+1 || row.data.rawSourceId !== `non-derivative-${i+1}`) {
-        throw new Error('Invalid transaction identity');
-      }
+        row.table !== 'non_derivative' || row.rowIndex !== i+1 || row.data.rawSourceId !== `non-derivative-${i+1}`) throw new Error('Invalid transaction identity');
       const expected=secPersistenceAmounts(record.parsed!,row.data);
       if (!row.persistenceAmounts || row.persistenceAmounts.shares!==expected.shares ||
         row.persistenceAmounts.price!==expected.price || row.persistenceAmounts.ownershipAfter!==expected.ownershipAfter ||
         row.persistenceAmounts.transactionValue!==null) throw new Error('Invalid persistence decimal boundary');
     }
+    return record;
+}
+
+/** Local/test storage only. One synchronous map replacement publishes the whole snapshot.
+ * No mutable references escape the adapter, and no await separates comparison from insert.
+ */
+export class InMemorySecIngestionRepository implements SecIngestionRepository {
+  private readonly records = new Map<string, SecIngestionRecord>();
+  async getFilingByAccession(accessionNumber: string): Promise<SecIngestionRecord | null> {
+    const record = this.records.get(secFilingKey(accessionNumber));
+    return record ? structuredClone(record) : null;
+  }
+  async saveIngestion(input: SecIngestionRecord): Promise<SecIngestionSaveResult> {
+    const record = validateSecIngestionSnapshot(input);
+    const key = secFilingKey(record.accessionNumber);
     const previous = this.records.get(key);
     if (previous && (previous.metadata.formType!==record.metadata.formType || previous.metadata.filingDate!==record.metadata.filingDate ||
       previous.metadata.cik!==record.metadata.cik || previous.metadata.primaryDocument!==record.metadata.primaryDocument)) {

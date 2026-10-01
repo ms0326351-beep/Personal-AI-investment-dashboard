@@ -7,7 +7,7 @@ import { PostgresSecIngestionRepository, secPostgresSchema } from './postgres/se
 import { createSecIngestionService } from './secIngestionService';
 import { form4Fixtures, form4Xml, transactionXml } from '../utils/fixtures/secForm4Xml';
 
-if(process.env.SEC_PG_TEST_ENABLED!=='1'){
+if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLED!=='1'){
   test('PostgreSQL integration requires disposable Docker runner (no fake DB)',{skip:true},()=>{});
 }else{
   registerSecAdapterContract('PostgreSQL',createSecPostgresHarness);
@@ -111,4 +111,45 @@ if(process.env.SEC_PG_TEST_ENABLED!=='1'){
   run('schema identifier rejects injection/traversal',async()=>{
     for(const name of ['public; DROP TABLE x','../x','"public"',''])assert.throws(()=>secPostgresSchema(name));
   });
+  if(process.env.SEC_PG_CLOUD_TEST_ENABLED==='1'){
+    run('cloud TLS, server version and precise large value boundary',async h=>{
+      const info=await h.pool.query('SELECT current_setting(\'server_version\') AS version');
+      process.stdout.write('Cloud PostgreSQL version: '+info.rows[0].version+'; TLS: verified\n');
+      // Temporary probe only: this does not invent a filing transaction value.
+      const client=await h.pool.connect();
+      try{
+        assert.equal((await import('./testing/secCloudPostgres')).verifiedCloudTls(client),true);
+        await client.query('CREATE TEMP TABLE numeric_value_probe (value numeric)');
+        const value='999999999999999999999.1234567890123456789';
+        await client.query('INSERT INTO numeric_value_probe VALUES ($1::numeric)',[value]);
+        const r=await client.query('SELECT value::text AS value FROM numeric_value_probe');
+        assert.equal(r.rows[0].value,value);
+        await client.query('DROP TABLE numeric_value_probe');
+      }finally{client.release();}
+    });
+    run('cloud idle eviction reconnects with a new backend',async h=>{
+      const pool=new Pool({...h.pool.options,max:1,idleTimeoutMillis:100});
+      try{
+        const first=await pool.query('SELECT pg_backend_pid() AS pid');
+        await new Promise(resolve=>setTimeout(resolve,250));
+        const second=await pool.query('SELECT pg_backend_pid() AS pid');
+        assert.notEqual(first.rows[0].pid,second.rows[0].pid);
+        assert.equal((await pool.query('SELECT 1 AS n')).rows[0].n,1);
+      }finally{await pool.end();}
+    });
+    run('cloud destroyed client is replaced and migration schema cleanup verified',async h=>{
+      const pool=new Pool({...h.pool.options,max:1});
+      try{
+        const client=await pool.connect();
+        const first=await client.query('SELECT pg_backend_pid() AS pid');
+        client.release(true);
+        const second=await pool.query('SELECT pg_backend_pid() AS pid');
+        assert.notEqual(first.rows[0].pid,second.rows[0].pid);
+      }finally{await pool.end();}
+      await h.pool.query(`DROP SCHEMA ${h.quoted} CASCADE`);
+      assert.equal((await h.pool.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[h.schema])).rows[0].n,0);
+      // Harness finalizer must remain valid after the explicit cleanup assertion.
+      await h.pool.query(`CREATE SCHEMA ${h.quoted}`);
+    });
+  }
 }

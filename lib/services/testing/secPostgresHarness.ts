@@ -9,16 +9,19 @@ import { SecRepositoryWriteError } from '../../types/secIngestion';
  * Runner marker is checked before CREATE/DROP or any test mutations.
  */
 export async function createSecPostgresHarness(){
-  if(process.env.SEC_PG_TEST_ENABLED!=='1')throw new Error('Local PostgreSQL tests not enabled');
+  const cloud=process.env.SEC_PG_CLOUD_TEST_ENABLED==='1';
+  if(!cloud && process.env.SEC_PG_TEST_ENABLED!=='1')throw new Error('Local PostgreSQL tests not enabled');
   const port=Number(process.env.SEC_PG_TEST_PORT),marker=process.env.SEC_PG_TEST_MARKER;
-  if(!Number.isInteger(port)||port<1024||port>65535||!marker||!/^[a-f0-9-]{36}$/.test(marker))throw new Error('Invalid local test environment');
-  const pool=new Pool({host:'127.0.0.1',port,user:'postgres',password:'',database:'sec_contract_test',ssl:false,
+  if(!cloud && (!Number.isInteger(port)||port<1024||port>65535||!marker||!/^[a-f0-9-]{36}$/.test(marker)))throw new Error('Invalid local test environment');
+  const pool=cloud ? await (await import('./secCloudPostgres')).cloudTestPool() : new Pool({host:'127.0.0.1',port,user:'postgres',password:'',database:'sec_contract_test',ssl:false,
     max:12,connectionTimeoutMillis:3000,idleTimeoutMillis:1000,application_name:'sec-stage2c3d-test'});
-  const schema='sec_test_'+randomUUID().replaceAll('-',''),quoted=secPostgresSchema(schema);
+  const schema=(cloud?'sec_cloud_test_':'sec_test_')+randomUUID().replaceAll('-',''),quoted=secPostgresSchema(schema);
   let schemaCreated=false;
   try{
+    if(!cloud){
     const result=await pool.query<{marker:string;database:string}>('SELECT marker,current_database() AS database FROM public.sec_local_test_marker');
     if(result.rows.length!==1||result.rows[0].marker!==marker||result.rows[0].database!=='sec_contract_test')throw new Error('Test database marker mismatch');
+    }
     const sql=await readFile(new URL('../postgres/migrations/001_sec_ingestion.sql',import.meta.url),'utf8');
     const connection=await pool.connect();
     try{

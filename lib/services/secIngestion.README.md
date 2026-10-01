@@ -52,3 +52,10 @@ Known limits: latest failed attempt only (no audit-history store), no leases or
 crash recovery, no parser-version reprocessing, no raw blob storage, no verified
 entity resolution, no derivative/holding-only expansion. Existing filing dates
 remain distinct from transaction dates; periodOfReport is never a holdings date.
+
+Stage 2C3C contract hardening: optional injected audit now retains local attempt
+history; without injection auditStatus is NOT_CONFIGURED. Unknown save outcomes
+are ACKNOWLEDGEMENT_UNKNOWN, never assumed rollback. Exact source decimal sidecars
+and deterministic parser version are checked at save. See
+`secPersistenceContract.README.md` for shared adapter tests and database obligations.
+No persistent adapter, raw XML storage or reprocessing has been implemented.

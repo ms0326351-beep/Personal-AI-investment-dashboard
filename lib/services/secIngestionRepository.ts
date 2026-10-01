@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SecIngestionRecord, SecIngestionRepository, SecIngestionSaveResult } from '../types/secIngestion';
 import { secFilingKey, validateSecMetadata } from '../utils/secEndpoints';
+import { secPersistenceAmounts } from '../utils/secPersistenceAmounts';
 
 export const isIngested = (record: SecIngestionRecord): boolean => record.state === 'PARSED' || record.state === 'PARTIAL';
 
@@ -23,14 +24,25 @@ export class InMemorySecIngestionRepository implements SecIngestionRepository {
         record.parsed.status !== (record.state === 'PARTIAL' ? 'partial' : 'parsed') ||
         record.transactions.length !== record.parsed.source.transactions.length ||
         record.parsed.source.accessionNumber !== record.accessionNumber || record.provenance.accessionNumber !== record.accessionNumber ||
+        !record.provenance.parserVersion?.trim() || !record.provenance.parserSchemaVersion?.trim() ||
+        record.provenance.parserVersion !== record.parsed.source.provenance.parserVersion ||
+        record.provenance.parserSchemaVersion !== record.parsed.source.schemaVersion ||
         !/^[a-f0-9]{64}$/.test(record.provenance.rawXmlHash)))) throw new Error('Invalid ingestion snapshot');
     for (const [i, row] of record.transactions.entries()) {
       if (row.id !== `${key}:non_derivative:${i+1}` || row.accessionNumber !== record.accessionNumber ||
         row.table !== 'non_derivative' || row.rowIndex !== i+1 || row.data.rawSourceId !== `non-derivative-${i+1}`) {
         throw new Error('Invalid transaction identity');
       }
+      const expected=secPersistenceAmounts(record.parsed!,row.data);
+      if (!row.persistenceAmounts || row.persistenceAmounts.shares!==expected.shares ||
+        row.persistenceAmounts.price!==expected.price || row.persistenceAmounts.ownershipAfter!==expected.ownershipAfter ||
+        row.persistenceAmounts.transactionValue!==null) throw new Error('Invalid persistence decimal boundary');
     }
     const previous = this.records.get(key);
+    if (previous && (previous.metadata.formType!==record.metadata.formType || previous.metadata.filingDate!==record.metadata.filingDate ||
+      previous.metadata.cik!==record.metadata.cik || previous.metadata.primaryDocument!==record.metadata.primaryDocument)) {
+      return {outcome:'METADATA_CONFLICT',record:structuredClone(previous)};
+    }
     // Even a failed parse establishes a content observation for this accession.
     if (previous?.provenance && record.provenance && previous.provenance.rawXmlHash !== record.provenance.rawXmlHash) {
       return {outcome:'INTEGRITY_CONFLICT',record:structuredClone(previous)};

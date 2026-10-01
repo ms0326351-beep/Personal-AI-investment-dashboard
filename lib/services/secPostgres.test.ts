@@ -6,32 +6,52 @@ import { createSecPostgresHarness } from './testing/secPostgresHarness';
 import { PostgresSecIngestionRepository, secPostgresSchema } from './postgres/secPostgresRepository';
 import { createSecIngestionService } from './secIngestionService';
 import { form4Fixtures, form4Xml, transactionXml } from '../utils/fixtures/secForm4Xml';
+import { cloudTrace, observeCloudPool, endCloudPool } from './testing/secCloudDiagnostics';
 
 if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLED!=='1'){
   test('PostgreSQL integration requires disposable Docker runner (no fake DB)',{skip:true},()=>{});
 }else{
-  registerSecAdapterContract('PostgreSQL',createSecPostgresHarness);
-  const run=(name:string,fn:(h:Awaited<ReturnType<typeof createSecPostgresHarness>>)=>Promise<void>)=>test(`PostgreSQL integration: ${name}`,async()=>{
-    const h=await createSecPostgresHarness();try{await fn(h);}finally{await h.dispose();}
+  const cloud=process.env.SEC_PG_CLOUD_TEST_ENABLED==='1';
+  registerSecAdapterContract('PostgreSQL',createSecPostgresHarness,{timeout:cloud?90000:undefined,trace:cloud?cloudTrace:undefined});
+  const run=(name:string,fn:(h:Awaited<ReturnType<typeof createSecPostgresHarness>>)=>Promise<void>)=>test(`PostgreSQL integration: ${name}`,{timeout:cloud?90000:undefined},async()=>{
+    if(cloud)cloudTrace(`START ${name}`);
+    const h=await createSecPostgresHarness();try{await fn(h);}finally{if(cloud)cloudTrace(`CLEANUP ${name} before`);await h.dispose();if(cloud)cloudTrace(`CLEANUP ${name} after`);}
+    if(cloud)cloudTrace(`DONE ${name}`);
   });
   const service=(h:Awaited<ReturnType<typeof createSecPostgresHarness>>,xml=form4Fixtures.purchase)=>
     createSecIngestionService(h.repository,{fetchResolvedForm4Document:async m=>envelope(xml,m)},{audit:h.audit,now:()=> '2026-10-01T00:00:00Z'});
 
   run('ten distinct backend connections race, one filing and one row, no orphan',async h=>{
     const workers=Array.from({length:10},()=>new Pool({...h.pool.options,max:1}));
+    if(cloud)workers.forEach(observeCloudPool);
     try{
-      const pids=await Promise.all(workers.map(async p=>(await p.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0].pid));
+      const pinned:PoolClient[]=[];
+      const probes=await Promise.allSettled(workers.map(async p=>{
+        if(process.env.SEC_PG_CLOUD_TEST_MODE!=='pooled')return (await p.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+        const client=await p.connect();pinned.push(client);await client.query('BEGIN');
+        return (await client.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      })).finally(async()=>{
+        const cleanup=await Promise.allSettled(pinned.map(async c=>{let broken=false;try{await c.query('ROLLBACK');}catch{broken=true;}finally{c.release(broken);}}));
+        assert.ok(cleanup.every(r=>r.status==='fulfilled'));
+      });
+      assert.ok(probes.every(r=>r.status==='fulfilled'));
+      const pids=probes.map(r=>{assert.equal(r.status,'fulfilled');return r.value;});
       assert.equal(new Set(pids).size,10);
-      let arrived=0,release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
-      const rs=await Promise.all(workers.map(p=>createSecIngestionService(new PostgresSecIngestionRepository(p,h.schema),{
+      let arrived=0,release!:()=>void,reject!: (error:Error)=>void;
+      const barrier=new Promise<void>((resolve,fail)=>{release=resolve;reject=fail;});
+      void barrier.catch(()=>{});
+      const timer=setTimeout(()=>reject(new Error('Test worker barrier timeout')),30000);
+      const settled=await Promise.allSettled(workers.map(p=>createSecIngestionService(new PostgresSecIngestionRepository(p,h.schema),{
         fetchResolvedForm4Document:async m=>{arrived++;if(arrived===10)release();await barrier;return envelope(form4Fixtures.purchase,m);},
-      }).ingestForm4Filing(input)));
+      }).ingestForm4Filing(input))).finally(()=>clearTimeout(timer));
+      assert.ok(settled.every(r=>r.status==='fulfilled'));
+      const rs=settled.map(r=>{assert.equal(r.status,'fulfilled');return r.value;});
       assert.equal(rs.filter(r=>r.status==='CREATED').length,1);assert.equal(rs.filter(r=>r.status==='ALREADY_EXISTS').length,9);
       assert.deepEqual(await h.stats(),{filings:1,transactions:1});
       const orphans=await h.pool.query(`SELECT count(*)::int AS n FROM ${h.quoted}.sec_transactions t
         LEFT JOIN ${h.quoted}.sec_filings f ON f.accession_number=t.filing_accession WHERE f.accession_number IS NULL`);
       assert.equal(orphans.rows[0].n,0);
-    }finally{await Promise.all(workers.map(p=>p.end()));}
+    }finally{await Promise.all(workers.map(p=>cloud?endCloudPool(p):p.end()));}
   });
   run('database accession uniqueness rejects direct duplicate inserts',async h=>{
     await service(h).ingestForm4Filing(input);
@@ -103,7 +123,7 @@ if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLE
     }
   });
   run('schema setup is repeatable and version recorded once',async h=>{
-    const client=await h.pool.connect();try{
+    const client=await h.admin.connect();try{
       await client.query('BEGIN');await client.query(`SET LOCAL search_path TO ${h.quoted}`);await client.query(h.sql);await client.query('COMMIT');
     }finally{client.release();}
     const r=await h.pool.query(`SELECT count(*)::int AS n FROM ${h.quoted}.sec_schema_versions WHERE version=1`);assert.equal(r.rows[0].n,1);
@@ -119,37 +139,52 @@ if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLE
       const client=await h.pool.connect();
       try{
         assert.equal((await import('./testing/secCloudPostgres')).verifiedCloudTls(client),true);
-        await client.query('CREATE TEMP TABLE numeric_value_probe (value numeric)');
+        const pooled=process.env.SEC_PG_CLOUD_TEST_MODE==='pooled';
+        if(pooled)await client.query('BEGIN');
+        await client.query('CREATE TEMP TABLE numeric_value_probe (value numeric)'+(pooled?' ON COMMIT DROP':''));
         const value='999999999999999999999.1234567890123456789';
         await client.query('INSERT INTO numeric_value_probe VALUES ($1::numeric)',[value]);
         const r=await client.query('SELECT value::text AS value FROM numeric_value_probe');
         assert.equal(r.rows[0].value,value);
-        await client.query('DROP TABLE numeric_value_probe');
-      }finally{client.release();}
+        if(pooled)await client.query('COMMIT');else await client.query('DROP TABLE numeric_value_probe');
+      }finally{try{if(process.env.SEC_PG_CLOUD_TEST_MODE==='pooled')await client.query('ROLLBACK');}finally{client.release();}}
     });
     run('cloud idle eviction reconnects with a new backend',async h=>{
       const pool=new Pool({...h.pool.options,max:1,idleTimeoutMillis:100});
+      observeCloudPool(pool);
       try{
+        if(process.env.SEC_PG_CLOUD_TEST_MODE==='pooled'){
+          const first=await pool.connect();await first.query('SELECT 1');first.release();
+          await new Promise(resolve=>setTimeout(resolve,250));assert.equal(pool.totalCount,0);
+          const second=await pool.connect();assert.notEqual(first,second);await second.query('SELECT 1');second.release();
+          assert.equal(pool.waitingCount,0);assert.equal(pool.idleCount,1);return;
+        }
         const first=await pool.query('SELECT pg_backend_pid() AS pid');
         await new Promise(resolve=>setTimeout(resolve,250));
         const second=await pool.query('SELECT pg_backend_pid() AS pid');
         assert.notEqual(first.rows[0].pid,second.rows[0].pid);
         assert.equal((await pool.query('SELECT 1 AS n')).rows[0].n,1);
-      }finally{await pool.end();}
+      }finally{await endCloudPool(pool);}
     });
     run('cloud destroyed client is replaced and migration schema cleanup verified',async h=>{
       const pool=new Pool({...h.pool.options,max:1});
+      observeCloudPool(pool);
       try{
         const client=await pool.connect();
         const first=await client.query('SELECT pg_backend_pid() AS pid');
         client.release(true);
-        const second=await pool.query('SELECT pg_backend_pid() AS pid');
-        assert.notEqual(first.rows[0].pid,second.rows[0].pid);
-      }finally{await pool.end();}
-      await h.pool.query(`DROP SCHEMA ${h.quoted} CASCADE`);
+        const replacement=await pool.connect();
+        try{
+          const second=await replacement.query('SELECT pg_backend_pid() AS pid');
+          if(process.env.SEC_PG_CLOUD_TEST_MODE==='pooled')assert.notEqual(client,replacement);
+          else assert.notEqual(first.rows[0].pid,second.rows[0].pid);
+        }finally{replacement.release();}
+        assert.equal(pool.waitingCount,0);assert.equal(pool.idleCount,1);
+      }finally{await endCloudPool(pool);}
+      await h.admin.query(`DROP SCHEMA ${h.quoted} CASCADE`);
       assert.equal((await h.pool.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[h.schema])).rows[0].n,0);
       // Harness finalizer must remain valid after the explicit cleanup assertion.
-      await h.pool.query(`CREATE SCHEMA ${h.quoted}`);
+      await h.admin.query(`CREATE SCHEMA ${h.quoted}`);
     });
   }
 }

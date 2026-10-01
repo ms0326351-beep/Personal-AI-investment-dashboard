@@ -34,9 +34,11 @@ export {input as secContractInput,envelope as secContractEnvelope};
 /** Shared, offline contract registration. Future PostgreSQL/Neon adapters reuse
  * these tests with a new harness, including real rollback/count/fault assertions.
  */
-export function registerSecAdapterContract(name:string,create:()=>Promise<SecAdapterContractHarness>):void {
-  const run=(title:string,fn:(h:SecAdapterContractHarness)=>Promise<void>)=>test(`${name} contract: ${title}`,async()=>{
-    const h=await create();try{await fn(h);}finally{await h.dispose();}
+export function registerSecAdapterContract(name:string,create:()=>Promise<SecAdapterContractHarness>,options:{timeout?:number;trace?:(step:string)=>void}={}):void {
+  const run=(title:string,fn:(h:SecAdapterContractHarness)=>Promise<void>)=>test(`${name} contract: ${title}`,{timeout:options.timeout},async()=>{
+    options.trace?.(`START ${title}`);
+    const h=await create();try{await fn(h);}finally{options.trace?.(`CLEANUP ${title} before`);await h.dispose();options.trace?.(`CLEANUP ${title} after`);}
+    options.trace?.(`DONE ${title}`);
   });
   const service=(h:SecAdapterContractHarness,xml=form4Fixtures.purchase)=>createSecIngestionService(h.repository,
     {fetchResolvedForm4Document:async m=>envelope(xml,m)},{audit:h.audit,now:()=>time});

@@ -2,6 +2,7 @@ import type { Form4Transaction } from './secForm4';
 import type { Form4XmlResult } from './secForm4Parser';
 import type { SecForm4Metadata, SecResolvedXmlEnvelope } from './secTransport';
 import type { SecPersistenceAmounts } from './secPersistence';
+import type { RawXmlReference } from './rawXmlStore';
 
 export type SecIngestionState = 'PARSED' | 'PARTIAL' | 'FAILED';
 export type SecIngestionStep = 'PENDING' | 'FETCHED' | SecIngestionState;
@@ -17,6 +18,7 @@ export interface SecIngestionProvenance extends Omit<SecResolvedXmlEnvelope, 'ra
   hashBasis: 'decoded_xml_utf8';
   parserVersion: string | null;
   parserSchemaVersion: string | null;
+  rawXmlReference?: RawXmlReference;
 }
 export interface SecIngestedTransaction {
   id: string;
@@ -56,6 +58,10 @@ export interface SecIngestionSaveResult {
 export interface SecIngestionRepository {
   getFilingByAccession(accessionNumber: string): Promise<SecIngestionRecord | null>;
   saveIngestion(record: SecIngestionRecord): Promise<SecIngestionSaveResult>;
+  /** Optional atomic terminal audit; callback is pure and runs before COMMIT.
+   * A returned result guarantees that both record and terminal audit committed.
+   */
+  saveIngestionWithTerminalAudit?(record:SecIngestionRecord, attempt:(result:SecIngestionSaveResult)=>SecIngestionAttempt):Promise<SecIngestionSaveResult>;
 }
 export interface SecIngestionResult {
   accessionNumber: string;

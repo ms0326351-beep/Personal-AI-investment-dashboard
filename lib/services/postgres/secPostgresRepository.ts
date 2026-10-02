@@ -31,6 +31,12 @@ export class PostgresSecIngestionRepository implements SecIngestionRepository {
   }
 
   async saveIngestion(input:SecIngestionRecord):Promise<SecIngestionSaveResult>{
+    return this.save(input);
+  }
+  async saveIngestionWithTerminalAudit(input:SecIngestionRecord,attempt:(result:SecIngestionSaveResult)=>SecIngestionAttempt):Promise<SecIngestionSaveResult>{
+    return this.save(input,attempt);
+  }
+  private async save(input:SecIngestionRecord,attempt?: (result:SecIngestionSaveResult)=>SecIngestionAttempt):Promise<SecIngestionSaveResult>{
     let record:SecIngestionRecord;
     try{record=validateSecIngestionSnapshot(input);}catch{throw new SecRepositoryWriteError('NOT_COMMITTED');}
     let client:PoolClient;
@@ -40,6 +46,8 @@ export class PostgresSecIngestionRepository implements SecIngestionRepository {
       await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
       await client.query("SET LOCAL lock_timeout='5s'");
       await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query("SET LOCAL idle_in_transaction_session_timeout='15s'");
+      await client.query("SET LOCAL transaction_timeout='30s'");
       const insert=await client.query(`INSERT INTO ${this.schema}.sec_filings
         (accession_number,cik,form_type,filing_date,is_amendment,primary_document,presentation_url,
          accession_index_url,raw_xml_url,raw_xml_hash,retrieved_at,parser_status,parser_version,snapshot)
@@ -76,6 +84,13 @@ export class PostgresSecIngestionRepository implements SecIngestionRepository {
             VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9::jsonb)`,
             [record.accessionNumber,row.id,row.table,row.rowIndex,a.shares,a.price,a.ownershipAfter,a.transactionValue,JSON.stringify(row)]);
         }
+      }
+      if(attempt){
+        const safe=safeSecIngestionAttempt(attempt({outcome,record:structuredClone(record)}));
+        if(safe.accessionNumber!==record.accessionNumber || safe.outcome!==outcome || safe.persistenceOutcome!=='CONFIRMED')throw new Error('Invalid terminal audit association');
+        await client.query(`INSERT INTO ${this.schema}.sec_ingestion_attempts
+          (accession_number,attempted_at,outcome,persistence_outcome,attempt) VALUES ($1,$2,$3,$4,$5::jsonb)`,
+          [safe.accessionNumber,safe.attemptedAt,safe.outcome,safe.persistenceOutcome,JSON.stringify(safe)]);
       }
       commitStarted=true;await client.query('COMMIT');
       return {outcome,record:structuredClone(record)};

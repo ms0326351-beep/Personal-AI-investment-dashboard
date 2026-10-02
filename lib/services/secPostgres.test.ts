@@ -7,6 +7,8 @@ import { PostgresSecIngestionRepository, secPostgresSchema } from './postgres/se
 import { createSecIngestionService } from './secIngestionService';
 import { form4Fixtures, form4Xml, transactionXml } from '../utils/fixtures/secForm4Xml';
 import { cloudTrace, observeCloudPool, endCloudPool } from './testing/secCloudDiagnostics';
+import { runSecMigrations,migrationChecksum } from './postgres/migrationRunner';
+import { verifyDatabaseIdentity } from './postgres/databaseSafety';
 
 if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLED!=='1'){
   test('PostgreSQL integration requires disposable Docker runner (no fake DB)',{skip:true},()=>{});
@@ -20,6 +22,121 @@ if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLE
   });
   const service=(h:Awaited<ReturnType<typeof createSecPostgresHarness>>,xml=form4Fixtures.purchase)=>
     createSecIngestionService(h.repository,{fetchResolvedForm4Document:async m=>envelope(xml,m)},{audit:h.audit,now:()=> '2026-10-01T00:00:00Z'});
+
+  run('G atomic terminal audit commits exactly once with filing',async h=>{
+    const s=createSecIngestionService(h.base,{fetchResolvedForm4Document:async m=>envelope(form4Fixtures.purchase,m)},{audit:h.audit});
+    const result=await s.ingestForm4Filing(input);assert.equal(result.status,'CREATED');assert.equal(result.auditStatus,'RECORDED');
+    assert.equal((await h.attempts(input.accessionNumber)).length,1);
+    await s.ingestForm4Filing(input);assert.equal((await h.attempts(input.accessionNumber)).length,2);
+  });
+  run('G terminal audit failure rolls back filing and transactions',async h=>{
+    await h.admin.query(`ALTER TABLE ${h.quoted}.sec_ingestion_attempts ADD CONSTRAINT reject_terminal CHECK(false) NOT VALID`);
+    const s=createSecIngestionService(h.base,{fetchResolvedForm4Document:async m=>envelope(form4Fixtures.purchase,m)},{audit:h.audit});
+    const result=await s.ingestForm4Filing(input);assert.equal(result.persistenceOutcome,'NOT_COMMITTED');
+    assert.deepEqual(await h.stats(),{filings:0,transactions:0});assert.equal((await h.attempts(input.accessionNumber)).length,0);
+  });
+  run('G migration ordered repeat/checksum history and rewrite refusal',async h=>{
+    const schema=h.schema+'m',quoted=secPostgresSchema(schema);
+    const manifest=[{version:1,name:'first',sql:'CREATE TABLE probe(id integer PRIMARY KEY);'},
+      {version:2,name:'second',sql:'ALTER TABLE probe ADD COLUMN label text;'}];
+    try{
+      assert.deepEqual(await runSecMigrations(h.admin,h.target,schema,[...manifest].reverse(),'direct'),{version:2,applied:2});
+      assert.deepEqual(await runSecMigrations(h.admin,h.target,schema,manifest,'direct'),{version:2,applied:0});
+      const rows=await h.admin.query(`SELECT checksum FROM ${quoted}.sec_migration_history ORDER BY version`);
+      assert.equal(rows.rows[0].checksum,migrationChecksum(manifest[0].sql));
+      await assert.rejects(runSecMigrations(h.admin,h.target,schema,[{...manifest[0],sql:manifest[0].sql+' '},manifest[1]],'direct'));
+      assert.equal((await h.admin.query(`SELECT count(*)::int AS n FROM ${quoted}.sec_migration_history`)).rows[0].n,2);
+    }finally{await h.assertSafe();await h.admin.query(`DROP SCHEMA IF EXISTS ${quoted} CASCADE`);}
+  });
+  run('G migration failing DDL rolls back schema and history',async h=>{
+    const schema=h.schema+'m';
+    await assert.rejects(runSecMigrations(h.admin,h.target,schema,[{version:1,name:'invalid',sql:'CREATE TABLE probe(id integer); INSERT INTO missing_table VALUES(1);'}],'direct'));
+    assert.equal((await h.admin.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[schema])).rows[0].n,0);
+  });
+  run('G migration environment mismatch and pooled mode refuse before mutation',async h=>{
+    const schema=h.schema+'m',manifest=[{version:1,name:'probe',sql:'CREATE TABLE probe(id integer);'}];
+    await assert.rejects(runSecMigrations(h.admin,{...h.target,environment:'production'},schema,manifest,'direct'));
+    await assert.rejects(runSecMigrations(h.admin,h.target,schema,manifest,'pooled'));
+    assert.equal((await h.admin.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[schema])).rows[0].n,0);
+  });
+  run('G migration refuses implicit adoption of untracked schema',async h=>{
+    await assert.rejects(runSecMigrations(h.admin,h.target,h.schema,[{version:1,name:'probe',sql:'CREATE TABLE probe(id integer);'}],'direct'));
+    assert.equal((await h.admin.query('SELECT to_regclass($1) AS table',[`${h.schema}.sec_migration_history`])).rows[0].table,null);
+  });
+  run('G identity hard stop is enforced against real database',async h=>{
+    await verifyDatabaseIdentity(h.pool,h.target,true);
+    await assert.rejects(verifyDatabaseIdentity(h.pool,{...h.target,databaseInstanceId:'00000000-0000-0000-0000-000000000000'},true));
+    await assert.rejects(verifyDatabaseIdentity(h.pool,{...h.target,environment:'production'},true));
+  });
+  // Only the disposable local DB may simulate production/malformed identity.
+  // Changes are transaction-local and rolled back before harness cleanup.
+  if(!cloud){
+    run('G atomic audit child failure has no committed filing or child rows',async h=>{
+      await h.admin.query(`ALTER TABLE ${h.quoted}.sec_transactions ADD CONSTRAINT reject_second CHECK(row_ordinal<>2)`);
+      const s=createSecIngestionService(h.base,{fetchResolvedForm4Document:async m=>envelope(form4Fixtures.multiple,m)});
+      assert.equal((await s.ingestForm4Filing(input)).persistenceOutcome,'NOT_COMMITTED');
+      assert.deepEqual(await h.stats(),{filings:0,transactions:0});assert.equal((await h.attempts(input.accessionNumber)).length,0);
+    });
+    run('G atomic audit preserves partial snapshot and hash conflict',async h=>{
+      let xml=form4Xml({extra:'<derivativeTable><derivativeTransaction/></derivativeTable>'});
+      const s=createSecIngestionService(h.base,{fetchResolvedForm4Document:async m=>envelope(xml,m)},{audit:h.audit});
+      const first=await s.ingestForm4Filing(input);assert.equal(first.state,'PARTIAL');assert.equal(first.auditStatus,'RECORDED');
+      const before=await h.base.getFilingByAccession(input.accessionNumber);
+      xml=form4Fixtures.purchase;
+      assert.equal((await s.ingestForm4Filing(input,{revalidate:true})).status,'INTEGRITY_CONFLICT');
+      assert.deepEqual(await h.base.getFilingByAccession(input.accessionNumber),before);
+      assert.equal((await h.attempts(input.accessionNumber)).length,2);
+    });
+    run('G real transaction timeout terminates connection without orphan rows',async h=>{
+      const client=await h.pool.connect();
+      try{
+        await client.query('BEGIN');await client.query("SET LOCAL transaction_timeout='100ms'");
+        await client.query(`CREATE TABLE ${h.quoted}.transaction_timeout_probe(id integer)`);
+        await assert.rejects(client.query('SELECT pg_sleep(1)'));
+      }finally{client.release(true);}
+      assert.equal((await h.pool.query('SELECT to_regclass($1) AS table',[`${h.schema}.transaction_timeout_probe`])).rows[0].table,null);
+      assert.equal((await service(h).ingestForm4Filing(input)).status,'CREATED');
+      assert.equal((await service(h).ingestForm4Filing(input)).status,'ALREADY_EXISTS');
+    });
+    for(const [name,environment,requested,allowed] of [
+      ['test to test','test','test',true],['development to development','development','development',true],
+      ['test to production','production','test',false],['production destructive cleanup','production','production',false],
+      ['missing identity','missing','test',false],['malformed identity','malformed','test',false],
+      ['migration environment mismatch','development','test',false],
+    ] as const)run(`G real marker ${name}`,async h=>{
+      const client=await h.admin.connect();
+      try{
+        await client.query('BEGIN');
+        if(environment==='missing')await client.query('DELETE FROM sec_admin.database_identity');
+        else if(environment==='malformed'){
+          await client.query('ALTER TABLE sec_admin.database_identity ALTER COLUMN created_at DROP NOT NULL');
+          await client.query('UPDATE sec_admin.database_identity SET created_at=NULL');
+        }else await client.query('UPDATE sec_admin.database_identity SET environment=$1',[environment]);
+        const verify=()=>verifyDatabaseIdentity(client,{...h.target,environment:requested},true);
+        if(allowed)await verify();else{
+          await assert.rejects(verify);
+          for(const command of [`DROP SCHEMA ${h.quoted} CASCADE`,`TRUNCATE ${h.quoted}.sec_filings CASCADE`]){
+            await assert.rejects((async()=>{await verify();await client.query(command);})());
+          }
+          assert.equal((await client.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[h.schema])).rows[0].n,1);
+        }
+      }finally{try{await client.query('ROLLBACK');}finally{client.release();}}
+      await h.assertSafe();
+    });
+    run('G statement timeout releases client and rolls back half-written rows',async h=>{
+      const client=await h.pool.connect();
+      try{
+        await client.query('BEGIN');await client.query("SET LOCAL statement_timeout='100ms'");
+        await client.query(`CREATE TABLE ${h.quoted}.timeout_probe(id integer)`);
+        await assert.rejects(client.query('SELECT pg_sleep(1)'),e=>!!e && typeof e==='object' && 'code' in e && e.code==='57014');
+        await client.query('ROLLBACK');
+      }finally{client.release();}
+      assert.equal((await h.pool.query('SELECT to_regclass($1) AS table',[`${h.schema}.timeout_probe`])).rows[0].table,null);
+      assert.equal(h.pool.waitingCount,0);
+      assert.equal((await service(h).ingestForm4Filing(input)).status,'CREATED');
+      assert.equal((await service(h).ingestForm4Filing(input)).status,'ALREADY_EXISTS');
+    });
+  }
 
   run('ten distinct backend connections race, one filing and one row, no orphan',async h=>{
     const workers=Array.from({length:10},()=>new Pool({...h.pool.options,max:1}));
@@ -181,6 +298,7 @@ if(process.env.SEC_PG_TEST_ENABLED!=='1' && process.env.SEC_PG_CLOUD_TEST_ENABLE
         }finally{replacement.release();}
         assert.equal(pool.waitingCount,0);assert.equal(pool.idleCount,1);
       }finally{await endCloudPool(pool);}
+      await h.assertSafe();
       await h.admin.query(`DROP SCHEMA ${h.quoted} CASCADE`);
       assert.equal((await h.pool.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1',[h.schema])).rows[0].n,0);
       // Harness finalizer must remain valid after the explicit cleanup assertion.

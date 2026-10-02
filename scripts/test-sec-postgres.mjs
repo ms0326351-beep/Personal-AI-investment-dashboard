@@ -1,6 +1,7 @@
 // Disposable loopback-only real PostgreSQL runner. No DB URLs/credentials/env files.
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -23,6 +24,9 @@ try {
   if(!ready)throw new Error('Local PostgreSQL did not become ready');
   run(['exec',name,'psql','-U','postgres','-d','sec_contract_test','-v','ON_ERROR_STOP=1','-c',
     `CREATE TABLE public.sec_local_test_marker (marker text PRIMARY KEY); INSERT INTO public.sec_local_test_marker VALUES ('${marker}');`]);
+  const identitySql=await readFile(new URL('../lib/services/postgres/identity.sql',import.meta.url),'utf8');
+  run(['exec',name,'psql','-U','postgres','-d','sec_contract_test','-v','ON_ERROR_STOP=1','-c',
+    identitySql+` INSERT INTO sec_admin.database_identity(environment,database_instance_id) VALUES ('test','${marker}');`]);
   const binding=run(['port',name,'5432/tcp']);
   if(!/^127\.0\.0\.1:\d+$/.test(binding))throw new Error('Unexpected test port binding');
   const port=binding.split(':')[1];
@@ -31,7 +35,8 @@ try {
   // --all includes existing repository tests in the SAME run with PG enabled.
   const args=process.argv.includes('--all')?['--test','lib/**/*.test.ts']:['--test','lib/services/secPostgres.test.ts'];
   const child=spawn(process.execPath,['node_modules/tsx/dist/cli.mjs','--import','./scripts/test-server-only.mjs',...args],
-    {stdio:'inherit',env:{...process.env,SEC_PG_TEST_ENABLED:'1',SEC_PG_TEST_PORT:port,SEC_PG_TEST_MARKER:marker}});
+    {stdio:'inherit',env:{...process.env,SEC_PG_CLOUD_TEST_ENABLED:'0',SEC_PG_TEST_ENABLED:'1',SEC_PG_TEST_PORT:port,SEC_PG_TEST_MARKER:marker,
+      DATABASE_ENV:'test',SEC_PG_EXPECTED_INSTANCE_ID:marker,SEC_PG_EXPECTED_DATABASE:'sec_contract_test'}});
   const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('exit',(code)=>resolve(code??1));});
   process.exitCode=code;
 }catch{

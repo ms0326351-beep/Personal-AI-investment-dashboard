@@ -7,6 +7,8 @@ import { secAccessionDirectoryUrl, secDocumentUrl, secFilingKey, validateSecMeta
 import { parseForm4Xml, SEC_FORM4_PARSER_VERSION } from '../utils/secForm4Parser';
 import { secPersistenceAmounts } from '../utils/secPersistenceAmounts';
 import { isIngested } from './secIngestionRepository';
+import type { RawXmlStore } from '../types/rawXmlStore';
+import type { SecIngestionAttempt } from '../types/secIngestion';
 
 /** Compatible with createSecClient(); no default client, env access or network side effects. */
 export interface SecIngestionTransport {
@@ -32,12 +34,13 @@ function transportFailure(error: unknown): SecIngestionFailure {
  * Cross-service/process correctness relies on repository atomicity, not a local promise map.
  */
 export function createSecIngestionService(repository: SecIngestionRepository, transport: SecIngestionTransport,
-  dependencies: { audit?: SecIngestionAudit; now?: () => string } = {}) {
+  dependencies: { audit?: SecIngestionAudit; rawXmlStore?:RawXmlStore; now?: () => string } = {}) {
   return {
     async ingestForm4Filing(input: SecForm4Metadata, options: { revalidate?: boolean } = {}): Promise<SecIngestionResult> {
       // Strict canonical accession format is shared with transport; reject before repository/network.
       const metadata = validateSecMetadata(input), filingKey = secFilingKey(metadata.accessionNumber);
       const attemptedAt = (dependencies.now ?? (() => new Date().toISOString()))();
+      let atomicAuditRecorded=false;
       const record: SecIngestionRecord = { schemaVersion:'sec-ingestion-v1',filingKey,accessionNumber:metadata.accessionNumber,metadata,
         state:'FAILED',steps:['PENDING'],provenance:null,parsed:null,transactions:[],failure:null,
         amendment:{isAmendment:metadata.formType==='4/A',amendsAccessionNumber:null,
@@ -54,18 +57,29 @@ export function createSecIngestionService(repository: SecIngestionRepository, tr
         return finish(response);
       };
       async function finish(response: SecIngestionResult): Promise<SecIngestionResult> {
+        if(atomicAuditRecorded){response.auditStatus='RECORDED';return response;}
         if (!dependencies.audit) return response;
         try {
-          await dependencies.audit.recordAttempt({accessionNumber:metadata.accessionNumber,attemptedAt,
+          await dependencies.audit.recordAttempt(attemptFor(response));
+          response.auditStatus='RECORDED';
+        } catch { response.auditStatus='UNAVAILABLE';response.warnings.push('AUDIT_UNAVAILABLE'); }
+        return response;
+      }
+      function attemptFor(response:SecIngestionResult):SecIngestionAttempt {
+        return {accessionNumber:metadata.accessionNumber,attemptedAt,
             operation:options.revalidate?'REVALIDATE':'INGEST',outcome:response.status,persistenceOutcome:response.persistenceOutcome,
             failure:response.failure?{...response.failure}:null,retryable:response.failure?.retryable??false,
             parserStatus:record.parsed?.status??response.parserStatus,rawXmlHash:record.provenance?.rawXmlHash??null,
             existingRawXmlHash:(response.existing||response.status.endsWith('CONFLICT'))?response.provenance?.rawXmlHash??null:previous?.provenance?.rawXmlHash??null,
             parserVersion:record.provenance?.parserVersion??response.provenance?.parserVersion??null,
-            metadata:{...metadata},warnings:[...response.warnings]});
-          response.auditStatus='RECORDED';
-        } catch { response.auditStatus='UNAVAILABLE';response.warnings.push('AUDIT_UNAVAILABLE'); }
-        return response;
+            metadata:{...metadata},warnings:[...response.warnings]};
+      }
+      async function persist():Promise<SecIngestionSaveResult>{
+        if(repository.saveIngestionWithTerminalAudit){
+          const saved=await repository.saveIngestionWithTerminalAudit(record,s=>attemptFor(result(s.outcome,s.record)));
+          atomicAuditRecorded=true;return saved;
+        }
+        return repository.saveIngestion(record);
       }
       let previous: SecIngestionRecord | null;
       try { previous = await repository.getFilingByAccession(metadata.accessionNumber); }
@@ -98,6 +112,17 @@ export function createSecIngestionService(repository: SecIngestionRepository, tr
         rawXmlHash:hashSecRawXml(envelope.rawXml),hashAlgorithm:'sha256',hashBasis:'decoded_xml_utf8',parserVersion:null,parserSchemaVersion:null };
       record.provenance=provenance;
       if (previous?.provenance && previous.provenance.rawXmlHash!==provenance.rawXmlHash) return finish(result('INTEGRITY_CONFLICT',previous));
+      if(dependencies.rawXmlStore){
+        try{
+          const retained=await dependencies.rawXmlStore.putImmutable({accessionNumber:metadata.accessionNumber,rawXml:envelope.rawXml,
+            rawXmlHash:provenance.rawXmlHash,hashBasis:provenance.hashBasis,sourceUrl:provenance.sourceUrl,retrievedAt:provenance.retrievedAt});
+          if(retained.status==='INTEGRITY_CONFLICT')return finish({...result('INTEGRITY_CONFLICT',record),persistenceOutcome:'NOT_COMMITTED'});
+          if(retained.reference.rawXmlHash!==provenance.rawXmlHash || retained.reference.hashBasis!==provenance.hashBasis || !retained.reference.key)throw new Error('Invalid retention reference');
+          provenance.rawXmlReference=retained.reference;
+        }catch{
+          return finish({...result('FAILED',record),persistenceOutcome:'NOT_COMMITTED',failure:{category:'REPOSITORY',code:'RAW_XML_RETENTION_UNAVAILABLE',retryable:true}});
+        }
+      }
       provenance.parserVersion=SEC_FORM4_PARSER_VERSION;
       const parsed = parseForm4Xml(envelope.rawXml,{filingId:metadata.accessionNumber,accessionNumber:metadata.accessionNumber,
         sourceIdentifier:envelope.sourceUrl,sourceUrl:envelope.sourceUrl,filingUrl:envelope.sourceUrl,
@@ -111,14 +136,14 @@ export function createSecIngestionService(repository: SecIngestionRepository, tr
       record.state=parsed.status==='partial'?'PARTIAL':'PARSED';record.steps.push(record.state);
       record.transactions=parsed.source.transactions.map((data,i)=>({id:`${filingKey}:non_derivative:${i+1}`,
         accessionNumber:metadata.accessionNumber,table:'non_derivative',rowIndex:i+1,data,persistenceAmounts:secPersistenceAmounts(parsed,data)}));
-      try { const saved=await repository.saveIngestion(record);return finish(result(saved.outcome,saved.record)); }
+      try { const saved=await persist();return finish(result(saved.outcome,saved.record)); }
       catch(error) { return storageFailure(error,true); }
 
       async function saveFailure(): Promise<SecIngestionResult> {
         record.steps.push('FAILED');
         // A failed explicit revalidation must be visible to its caller, without erasing stored success.
         if (previous && isIngested(previous)) return finish({...result('FAILED',record),persistenceOutcome:'NOT_COMMITTED'});
-        try { const saved=await repository.saveIngestion(record);return finish(result(saved.outcome,saved.record)); }
+        try { const saved=await persist();return finish(result(saved.outcome,saved.record)); }
         catch(error) { return storageFailure(error,true); }
       }
     },

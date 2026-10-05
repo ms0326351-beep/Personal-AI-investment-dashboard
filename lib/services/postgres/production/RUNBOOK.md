@@ -40,6 +40,7 @@ new ownership review. No runtime schema CREATE or database CREATE/TEMP.
 3. With separately authorized, process-scoped ADMIN Direct credentials, run
    **only** the read-only preflight. Missing identity must fail without creating
    anything. Stop and report; it does not authorize automatic bootstrap.
+   Use explicit discovery mode for an uninitialized target, not verify mode.
 4. After separate write approval, administer bootstrap manually; inspect identity
    and restricted roles, then repeat read-only preflight. Do not print credentials.
 5. Before migration, record a usable restore point and recovery procedure. Secure
@@ -55,12 +56,16 @@ new ownership review. No runtime schema CREATE or database CREATE/TEMP.
 
 ## Tool boundaries
 
-Read-only: `pnpm exec tsx --conditions=react-server scripts/sec-production-preflight.ts`
+Read-only discovery: `pnpm exec tsx --conditions=react-server scripts/sec-production-preflight.ts --mode discovery`
+
+Read-only verification: `pnpm exec tsx --conditions=react-server scripts/sec-production-preflight.ts --mode verify`
 
 Write: `pnpm exec tsx --conditions=react-server scripts/sec-production-migrate.ts`
 
-Both require process-scoped DATABASE_ENV=production, DB_EXPECTED_INSTANCE_ID,
-and DATABASE_DIRECT_URL. Never use NEXT_PUBLIC variables. Direct credentials
+Discovery requires process-scoped DATABASE_ENV=production, DB_EXPECTED_DATABASE
+(independently confirmed database name), and DATABASE_DIRECT_URL; no expected
+UUID is required or auto-adopted. Verify and migration require DATABASE_ENV,
+DB_EXPECTED_INSTANCE_ID and DATABASE_DIRECT_URL. Never use NEXT_PUBLIC variables. Direct credentials
 must not be exposed to Netlify application runtime. Runtime DATABASE_URL must
 be a distinct restricted pooled credential; no runtime wiring is done here.
 
@@ -74,6 +79,28 @@ timeouts, identity checks, role flags/membership/ownership checks, and safe
 metadata only. It accepts no SQL or migration path. The write entry accepts no
 arbitrary migration list; files absent from the manifest never execute. There
 are no force/skip-identity/ignore-checksum/destructive bypass switches.
+
+## Discovery and operator UUID lifecycle
+
+The UUID is application-defined, not a Neon project/branch ID or a native
+PostgreSQL server ID. Operator generates it before provisioning and saves it
+outside the repository in a secure operational record. No official UUID is
+generated, stored or substituted by these tools.
+
+First discovery does not require the UUID. A fully absent identity namespace
+with no sec_app/history state returns NOT_BOOTSTRAPPED and stops successfully;
+this does not verify the provider project/branch or authorize any write.
+Incomplete schemas, malformed tables/rows, permission/auth/connection errors,
+environment/database/version mismatches fail with allowlisted categories.
+Existing valid marker returns IDENTITY_PRESENT_NOT_VERIFIED, never VERIFIED;
+the observed UUID is neither output nor adopted. A missing expected UUID cannot
+be bypassed through discovery to perform migration or start runtime.
+
+After NOT_BOOTSTRAPPED, STOP and obtain separate WRITE approval. Bootstrap
+uses the pre-recorded UUID. Subsequent verify, migration and runtime use that
+same DB_EXPECTED_INSTANCE_ID and must fail on mismatch/missing/invalid UUID.
+Do not regenerate an ID to make verification pass. Discovery uses only metadata
+and marker SELECTs inside server-enforced READ ONLY, with no bootstrap imports.
 
 ## Artifact immutability and failure recovery
 

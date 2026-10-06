@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCacheKey, createNewsAnalysisCache, type AnalysisBlobStore } from './newsAnalysisCache';
+import { buildCacheKey, createNewsAnalysisCache, AnalysisCoordinationUnavailableError, requiresSharedAnalysisCoordination, type AnalysisBlobStore } from './newsAnalysisCache';
 import type { CachedNewsAnalysis } from '../../types/newsAnalysis';
 
 export function fakeBlobStore(): AnalysisBlobStore {
@@ -66,4 +66,31 @@ test('a write outage and recovery never reset locally consumed daily capacity',a
   await cache.reserveBudget('d',2,'a');await cache.finishBudget('d','a',true);
   broken=true;assert.equal(await cache.reserveBudget('d',2,'b'),true);await cache.finishBudget('d','b',true);
   broken=false;assert.equal(await cache.reserveBudget('d',2,'c'),false);
+});
+
+test('production storage outage cannot grant a process-only lease or budget',async()=>{
+  const cache=createNewsAnalysisCache(()=>{throw Error('offline')},Date.now,()=>{},()=>true);
+  await cache.setCachedAnalysis('cached',analysis,60);
+  assert.deepEqual(await cache.getCachedAnalysis('cached'),analysis);
+  await assert.rejects(cache.acquireLease('k','a'),AnalysisCoordinationUnavailableError);
+  await assert.rejects(cache.reserveBudget('d',1,'a'),AnalysisCoordinationUnavailableError);
+});
+
+test('production conditional-write outage does not fall back to memory; recovery retains shared spend',async()=>{
+  const store=fakeBlobStore();let offline=false;
+  const cache=createNewsAnalysisCache(()=>({...store,async setJSON(k,v,c){if(offline)throw Error('offline');return store.setJSON(k,v,c)}}),Date.now,()=>{},()=>true);
+  assert.equal(await cache.reserveBudget('d',1,'a'),true);
+  await cache.finishBudget('d','a',true);
+  offline=true;await assert.rejects(cache.acquireLease('k','b'),AnalysisCoordinationUnavailableError);
+  offline=false;assert.equal(await cache.reserveBudget('d',1,'b'),false);
+});
+
+test('production default enforces shared coordination without an opt-in environment flag',async()=>{
+  const previous=process.env.NODE_ENV;
+  try {
+    Reflect.set(process.env,'NODE_ENV','production');assert.equal(requiresSharedAnalysisCoordination(),true);
+    const cache=createNewsAnalysisCache(()=>{throw Error('offline')},Date.now,()=>{});
+    await assert.rejects(cache.acquireLease('k','a'),AnalysisCoordinationUnavailableError);
+    Reflect.set(process.env,'NODE_ENV','development');assert.equal(requiresSharedAnalysisCoordination(),false);
+  } finally {if(previous===undefined)Reflect.deleteProperty(process.env,'NODE_ENV');else Reflect.set(process.env,'NODE_ENV',previous);}
 });

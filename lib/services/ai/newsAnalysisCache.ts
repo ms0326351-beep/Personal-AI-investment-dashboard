@@ -9,15 +9,18 @@ export interface AnalysisBlobStore {
 }
 type Envelope = {value: unknown; expiresAt: number};
 type Budget = {used: number; pending: string[]};
+export const requiresSharedAnalysisCoordination = () => process.env.NODE_ENV==='production';
+export class AnalysisCoordinationUnavailableError extends Error {
+  constructor(){super('Shared AI coordination unavailable');}
+}
 const isEnvelope = (v: unknown): v is Envelope => !!v && typeof v === 'object' && 'expiresAt' in v && typeof v.expiresAt === 'number' && 'value' in v;
 export const buildCacheKey = (newsId: string, schemaVersion: string, modelVersion: string) => `${newsId}:${schemaVersion}:${modelVersion}`;
 
 export function createNewsAnalysisCache(
   storeFactory: () => AnalysisBlobStore = () => getStore({name:'news-ai-analysis',consistency:'strong', fetch: (url, init) => fetch(url,{...init,signal:AbortSignal.timeout(3000)})}),
   now: () => number = Date.now,
-  // During a Blobs outage the daily limit is per-instance, NOT per-app.
-  // Keep the agreed memory fallback; refusing new analyses requires a policy change.
-  log: () => void = () => console.warn('[news-ai] Persistent cache unavailable; using process memory. Daily limit is per-instance, not per-app.'),
+  log: () => void = () => console.warn('[news-ai] Persistent cache unavailable. Cached results may use memory; production new analyses require shared coordination.'),
+  requireSharedCoordination: () => boolean = requiresSharedAnalysisCoordination,
 ) {
   const memory = new Map<string, Envelope>();
   const degradedBudgets = new Set<string>();
@@ -44,7 +47,8 @@ export function createNewsAnalysisCache(
     try { await storeFactory().setJSON(key,e); } catch { warn(); }
   }
   // Strong reads + conditional writes make budgets/leases safe across function instances.
-  // A transport outage explicitly degrades to one-process coordination only.
+  // Only development may degrade coordination to one process. Production must
+  // reserve shared capacity before issuing any paid provider request.
   async function mutate<T>(key: string, ttl: number, initial: T, update: (value: T) => T | null): Promise<boolean> {
     try {
       const store=storeFactory();
@@ -68,7 +72,11 @@ export function createNewsAnalysisCache(
         if (result.modified) { remember(key,e); return true; }
       }
       return false; // Contention is not a storage outage: never bypass the shared limit.
-    } catch { warn(); if(key.startsWith('budget:')) degradedBudgets.add(key); }
+    } catch {
+      warn();
+      if(requireSharedCoordination()) throw new AnalysisCoordinationUnavailableError();
+      if(key.startsWith('budget:')) degradedBudgets.add(key);
+    }
     const previous=live(memory.get(key));
     const value=update(previous ? structuredClone(previous.value) as T : structuredClone(initial));
     if (value===null) return false;

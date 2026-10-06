@@ -82,6 +82,7 @@ export function createNewsAnalysisService(options: {
   async function create(item:NewsItem,key:string,model:string,inputBasis:NewsInputBasis,retry:boolean):Promise<CachedNewsAnalysis> {
     const cached=await read(key,item,model,retry); if(cached) return cached;
     const token=randomUUID();
+    const leaseStarted=now();
     const acquired=await coordinate(()=>cache.acquireLease(key,token),()=>fallback.acquireLease(key,token));
     if(!acquired) {
       // Another function owns this news. Read its result, never issue a second GPT call.
@@ -91,7 +92,7 @@ export function createNewsAnalysisService(options: {
       }
       return unavailable(item.id,model,'此新聞正在分析中，請稍後重新開啟頁面查看');
     }
-    let reserved=false,success=false,attempted=false;
+    let reserved=false,success=false,attempted=false,providerSlot='';
     const day=new Date(now()+8*3600000).toISOString().slice(0,10); // Asia/Taipei calendar day
     try {
       const again=await read(key,item,model,retry); if(again) return again;
@@ -100,6 +101,15 @@ export function createNewsAnalysisService(options: {
       if(!reserved) {
         const result={...unavailable(item.id,model,'今日 AI 分析次數已達上限'),errorCode:'daily_limit'}; await save(key,result); return result;
       }
+      if(requireSharedCoordination() && limit>0) {
+        for(let i=0;i<2;i++) {
+          const slot=`provider-capacity:${i}`;
+          if(await coordinate(()=>cache.acquireLease(slot,token),()=>fallback.acquireLease(slot,token))) {providerSlot=slot;break;}
+        }
+        if(!providerSlot) return {...unavailable(item.id,model,'AI 分析繁忙，請稍後重試'),errorCode:'rate_limit',retryAt:new Date(now()+30000).toISOString()};
+      }
+      // Do not start a 30s provider call near the expiry of a 90s article lease.
+      if(requireSharedCoordination() && now()-leaseStarted>45000) return unavailable(item.id,model,'分析協調等待逾時，請稍後重試');
       let result:CachedNewsAnalysis;
       try {
         const candidatePersons=peopleRegistry.filter(p=>(item.relatedPersonIds ?? []).includes(p.id)).map(({id,name,title,organization})=>({id,name,title,organization}));
@@ -122,7 +132,9 @@ export function createNewsAnalysisService(options: {
       try {
         if(reserved) await coordinate(()=>cache.finishBudget(day,token,success || attempted && requireSharedCoordination()),()=>fallback.finishBudget(day,token,success));
       } finally {
-        await coordinate(()=>cache.releaseLease(key,token),()=>fallback.releaseLease(key,token));
+        try {
+          if(providerSlot) await coordinate(()=>cache.releaseLease(providerSlot,token),()=>fallback.releaseLease(providerSlot,token));
+        } finally {await coordinate(()=>cache.releaseLease(key,token),()=>fallback.releaseLease(key,token));}
       }
     }
   }

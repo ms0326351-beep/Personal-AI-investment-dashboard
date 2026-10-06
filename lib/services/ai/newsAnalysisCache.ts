@@ -1,5 +1,5 @@
 import 'server-only';
-import { getStore } from '@netlify/blobs';
+import { getNewsBlobStore } from '../news/newsBlobStore';
 import type { CachedNewsAnalysis } from '../../types/newsAnalysis';
 
 type Conditions = {onlyIfNew: true} | {onlyIfMatch: string};
@@ -13,11 +13,11 @@ export const requiresSharedAnalysisCoordination = () => process.env.NODE_ENV==='
 export class AnalysisCoordinationUnavailableError extends Error {
   constructor(){super('Shared AI coordination unavailable');}
 }
-const isEnvelope = (v: unknown): v is Envelope => !!v && typeof v === 'object' && 'expiresAt' in v && typeof v.expiresAt === 'number' && 'value' in v;
+const isEnvelope = (v: unknown): v is Envelope => !!v && typeof v === 'object' && 'expiresAt' in v && typeof v.expiresAt === 'number' && Number.isFinite(v.expiresAt) && 'value' in v;
 export const buildCacheKey = (newsId: string, schemaVersion: string, modelVersion: string) => `${newsId}:${schemaVersion}:${modelVersion}`;
 
 export function createNewsAnalysisCache(
-  storeFactory: () => AnalysisBlobStore = () => getStore({name:'news-ai-analysis',consistency:'strong', fetch: (url, init) => fetch(url,{...init,signal:AbortSignal.timeout(3000)})}),
+  storeFactory: () => AnalysisBlobStore = () => getNewsBlobStore('news-ai-analysis'),
   now: () => number = Date.now,
   log: () => void = () => console.warn('[news-ai] Persistent cache unavailable. Cached results may use memory; production new analyses require shared coordination.'),
   requireSharedCoordination: () => boolean = requiresSharedAnalysisCoordination,
@@ -55,6 +55,8 @@ export function createNewsAnalysisCache(
       for (let attempt=0;attempt<10;attempt++) {
         const old=await store.getWithMetadata(key,{type:'json',consistency:'strong'});
         if (old && !old.etag) return false;
+        // An existing corrupt record is not missing/expired capacity. Never reset it.
+        if (old && !isEnvelope(old.data)) throw new AnalysisCoordinationUnavailableError();
         let current=old && isEnvelope(old.data) && live(old.data) ? old.data.value as T : structuredClone(initial);
         const shadow=live(memory.get(key));
         if(degradedBudgets.has(key) && shadow) {
@@ -95,7 +97,7 @@ export function createNewsAnalysisCache(
     acquireLease: (key: string, token: string) => mutate(`lease:${key}`,90,{owner:''},v=>v.owner ? null : {owner:token}),
     releaseLease: (key: string, token: string) => mutate(`lease:${key}`,1,{owner:''},v=>v.owner===token ? {owner:''} : null),
     reserveBudget: (date: string, limit: number, token: string) => mutate<Budget>(`budget:${date}`,172800,{used:0,pending:[]},v=>{
-      if (!Number.isInteger(v.used) || !Array.isArray(v.pending) || v.used+v.pending.length>=limit) return null;
+      if (!Number.isSafeInteger(v.used) || v.used<0 || !Array.isArray(v.pending) || !v.pending.every(t=>typeof t==='string') || new Set(v.pending).size!==v.pending.length || v.used+v.pending.length>=limit) return null;
       return {...v,pending:[...v.pending,token]};
     }),
     finishBudget: (date: string, token: string, success: boolean) => mutate<Budget>(`budget:${date}`,172800,{used:0,pending:[]},v=>{

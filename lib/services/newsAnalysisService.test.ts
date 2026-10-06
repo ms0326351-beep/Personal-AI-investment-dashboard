@@ -243,3 +243,27 @@ test('production budget write failure after a shared lease still makes zero prov
   assert.equal(result.status,'unavailable');assert.equal(calls,0);
   assert.doesNotMatch(JSON.stringify(result),/private-budget-failure/);
 });
+
+test('production shared provider capacity caps concurrency across instances and releases on completion',async()=>{
+  const blobs=store();let active=0,max=0;const releases:(()=>void)[]=[];
+  const provider={async analyzeNews(){active++;max=Math.max(max,active);await new Promise<void>(r=>releases.push(r));active--;return market;}};
+  const create=()=>setup(provider,{cache:createNewsAnalysisCache(()=>blobs,Date.now,()=>{},()=>true),requireSharedCoordination:()=>true,dailyLimit:()=>10});
+  const first=create().getOrCreateAnalysis({...item,id:'rss-capacity-a'},[],[]);
+  const second=create().getOrCreateAnalysis({...item,id:'rss-capacity-b'},[],[]);
+  for(let i=0;i<100&&releases.length<2;i++)await new Promise<void>(r=>setImmediate(r));
+  assert.equal(releases.length,2);
+  const third=await create().getOrCreateAnalysis({...item,id:'rss-capacity-c'},[],[]);
+  assert.equal(third.errorCode,'rate_limit');assert.equal(max,2);
+  releases.splice(0).forEach(r=>r());await Promise.all([first,second]);
+  const next=create().getOrCreateAnalysis({...item,id:'rss-capacity-d'},[],[]);
+  for(let i=0;i<100&&releases.length<1;i++)await new Promise<void>(r=>setImmediate(r));
+  assert.equal(releases.length,1);releases.splice(0).forEach(r=>r());assert.equal((await next).status,'ok');
+});
+
+test('slow shared coordination refuses to start a provider call near article lease expiry',async()=>{
+  const blobs=store();let time=0,calls=0;
+  const cache=createNewsAnalysisCache(()=>blobs,()=>time,()=>{},()=>true);
+  const slow={...cache,async reserveBudget(date:string,limit:number,token:string){const result=await cache.reserveBudget(date,limit,token);time+=46000;return result;}};
+  const service=setup({async analyzeNews(){calls++;return market}},{cache:slow,now:()=>time,requireSharedCoordination:()=>true});
+  assert.equal((await service.getOrCreateAnalysis(item,[],[])).status,'unavailable');assert.equal(calls,0);
+});

@@ -94,3 +94,21 @@ test('production default enforces shared coordination without an opt-in environm
     Reflect.set(process.env,'NODE_ENV','development');assert.equal(requiresSharedAnalysisCoordination(),false);
   } finally {if(previous===undefined)Reflect.deleteProperty(process.env,'NODE_ENV');else Reflect.set(process.env,'NODE_ENV',previous);}
 });
+
+test('malformed shared daily capacity cannot grant a paid request',async()=>{
+  for(const value of [{used:-1,pending:[]},{used:0,pending:['x','x']},{used:0,pending:[null]}]) {
+    const store=fakeBlobStore();await store.setJSON('budget:d',{value,expiresAt:Date.now()+60000});
+    assert.equal(await createNewsAnalysisCache(()=>store,Date.now,()=>{},()=>true).reserveBudget('d',1,'new'),false);
+  }
+});
+
+test('production malformed coordination envelopes never reset quota or lease capacity',async()=>{
+  for(const record of [{}, {value:{used:50,pending:[]}}, {value:{used:50,pending:[]},expiresAt:NaN}, {value:{used:50,pending:[]},expiresAt:Infinity}]) {
+    const store=fakeBlobStore();
+    await store.setJSON('budget:d',record);
+    await store.setJSON('lease:k',record);
+    const cache=createNewsAnalysisCache(()=>store,Date.now,()=>{},()=>true);
+    await assert.rejects(cache.reserveBudget('d',50,'new'),AnalysisCoordinationUnavailableError);
+    await assert.rejects(cache.acquireLease('k','new'),AnalysisCoordinationUnavailableError);
+  }
+});

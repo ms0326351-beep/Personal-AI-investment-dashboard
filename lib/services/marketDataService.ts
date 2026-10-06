@@ -6,12 +6,14 @@ import type { PriceHistory } from '@/lib/types/marketSource';
 import { indices, securities, fx } from '@/lib/mock/data';
 import { createYahooProvider } from './yahooMarketProvider';
 import { withMarketFallback } from './marketFallback';
+import { fxService, sampleFx } from './fxService';
+import type { FxSnapshot } from '../types/fx';
 
 export interface MarketDataService {
   getIndices(): Promise<MarketIndex[]>;
   getSecurities(): Promise<Security[]>;
   getSecurity(symbol: string): Promise<Security | undefined>;
-  getFx(): Promise<typeof fx>;
+  getFx(): Promise<FxSnapshot>;
   getHistory(symbol: string): Promise<PriceHistory>;
 }
 import { normalizeSymbol } from '@/lib/utils/marketSymbols';
@@ -19,6 +21,7 @@ const providerSymbols: Record<string,string> = {'0050':'0050.TW','2330':'2330.TW
 const provider = createYahooProvider();
 const quote = cache((symbol:string)=>provider.getQuote(providerSymbols[symbol] ?? symbol));
 const history = cache((symbol:string)=>provider.getHistory(providerSymbols[symbol] ?? symbol));
+const liveFx = cache(()=>fxService.getFx());
 const fallbackReason='行情來源暫時無法使用，顯示模擬備援';
 function mockHistory(symbol:string): PriceHistory {
   const s=securities.find(s=>s.symbol===symbol);
@@ -28,7 +31,7 @@ export const mockMarketDataService: MarketDataService = {
   async getIndices(){return indices.map(i=>({...i,source:'mock'}))},
   async getSecurities(){return securities.map(s=>({...s,source:'mock'}))},
   async getSecurity(symbol){const s=securities.find(s=>s.symbol===normalizeSymbol(symbol));return s?{...s,source:'mock'}:undefined},
-  async getFx(){return fx},
+  async getFx(){return {...sampleFx}},
   async getHistory(symbol){return mockHistory(normalizeSymbol(symbol))},
 };
 export const marketDataService: MarketDataService = {
@@ -46,7 +49,7 @@ export const marketDataService: MarketDataService = {
     if(!base) return undefined;
     return withMarketFallback(async()=>({...base,...await quote(base.symbol)}),base,fallbackReason);
   },
-  async getFx(){return fx},
+  async getFx(){await connection();return liveFx()},
   async getHistory(symbol){
     await connection();
     const canonical=normalizeSymbol(symbol);

@@ -40,6 +40,7 @@ export function createAnalysisRequestGuard(
         const count=old?Number((old.data as {count:number}).count):0;
         if(count>=30) return {status:429,message:'分析請求過於頻繁，請稍後再試',retryAfter};
         const result=await store.setJSON(key,{count:count+1},old?{onlyIfMatch:old.etag!}:{onlyIfNew:true});
+        if(!result || typeof result.modified!=='boolean') throw Error('Invalid rate write result');
         if(result.modified) return null;
       }
       return {status:429,message:'分析請求繁忙，請稍後再試',retryAfter};

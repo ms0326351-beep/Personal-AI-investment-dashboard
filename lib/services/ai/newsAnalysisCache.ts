@@ -71,6 +71,7 @@ export function createNewsAnalysisCache(
         if (value===null) return false;
         const e={value,expiresAt:now()+ttl*1000};
         const result=await store.setJSON(key,e,old ? {onlyIfMatch:old.etag!} : {onlyIfNew:true});
+        if(!result || typeof result.modified!=='boolean') throw new AnalysisCoordinationUnavailableError();
         if (result.modified) { remember(key,e); return true; }
       }
       return false; // Contention is not a storage outage: never bypass the shared limit.

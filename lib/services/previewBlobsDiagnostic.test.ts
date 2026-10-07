@@ -171,3 +171,37 @@ test('stalled body inspection times out fail closed before storage',async()=>{
   const response=await route(streamRequest(new ReadableStream()));
   assert.equal(response.status,400);assert.equal(acquisitions,0);
 });
+
+const crossCases:{name:string;fetcher:typeof fetch;stage:string;pass?:boolean;missing?:boolean}[]=[
+  {name:'success',fetcher:async()=>Response.json({persisted:true}),stage:'response_received',pass:true},
+  {name:'network',fetcher:async()=>{throw new TypeError(`${url} ${token}`);},stage:'fetch_error',missing:true},
+  {name:'timeout',fetcher:async()=>{throw new DOMException(`${token} ${url}`,'TimeoutError');},stage:'timeout',missing:true},
+  {name:'redirect',fetcher:async()=>new Response('{"persisted":true}',{status:302,headers:{'content-type':'application/json'}}),stage:'redirect_detected'},
+  {name:'HTTP failure',fetcher:async()=>Response.json({persisted:true},{status:403}),stage:'http_status_invalid'},
+  {name:'non-JSON',fetcher:async()=>new Response('<html>private</html>',{headers:{'content-type':'text/html'}}),stage:'content_type_invalid',missing:true},
+  {name:'malformed JSON',fetcher:async()=>new Response('{broken', {headers:{'content-type':'application/json'}}),stage:'json_parse_error',missing:true},
+  {name:'wrong shape',fetcher:async()=>Response.json({other:true}),stage:'payload_shape_invalid'},
+  {name:'persisted false',fetcher:async()=>Response.json({persisted:false}),stage:'cross_request_result_false'},
+];
+for(const scenario of crossCases) test(`cross-request ${scenario.name}: safe stage evidence and cleanup`,async()=>{
+  const f=fixture();const logs:Record<string,string|boolean|number|null>[]=[];
+  const route=createPreviewBlobsDiagnostic(()=>config,()=>f.store,scenario.fetcher,fields=>logs.push(fields));
+  const response=await route(request());const result=await response.json();
+  assert.equal(response.status,scenario.pass?200:503);assert.equal(result.cleanup,true);
+  assert.equal(f.values.size,0);assert.equal(f.deleted.length,3);
+  assert.equal(result.results.crossRequest,scenario.missing?undefined:Boolean(scenario.pass));
+  assert.ok(logs.some(l=>l.stage===scenario.stage));assert.equal(logs[0].stage,'fetch_start');
+  for(const l of logs) {assert.equal(l.event,'preview_blobs_cross_request_failure');assert.equal(l.sameOrigin,true);assert.equal(l.targetKind,'preview-alias');assert.ok(Number(l.durationMs)>=0);}
+  const text=JSON.stringify(logs);assert.ok(!text.includes(token));assert.ok(!text.includes(url));assert.ok(!text.includes('private'));assert.ok(!text.includes('preview-diagnostic/'));
+});
+test('cross-request logs sanitize arbitrary content type and preserve original semantics',async()=>{
+  const f=fixture();const logs:Record<string,string|boolean|number|null>[]=[];
+  const fetcher:typeof fetch=async(_input,init)=>{
+    assert.equal(init?.redirect,'error');assert.ok(init?.signal);assert.equal(init?.method,'POST');
+    return new Response('{"persisted":true}',{headers:{'content-type':`unsafe-${token}`}});
+  };
+  const response=await createPreviewBlobsDiagnostic(()=>config,()=>f.store,fetcher,fields=>logs.push(fields))(request());
+  assert.equal(response.status,200); // Existing semantics do not require a particular MIME for valid JSON.
+  assert.ok(logs.some(l=>l.stage==='content_type_invalid'&&l.contentType==='other'));
+  assert.ok(!JSON.stringify(logs).includes(token));assert.equal(f.values.size,0);
+});

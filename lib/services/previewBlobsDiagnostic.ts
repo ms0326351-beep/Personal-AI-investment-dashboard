@@ -90,9 +90,31 @@ export function createPreviewBlobsDiagnostic(
       const race=await Promise.all([store.setJSON(keys[2],data(0),{onlyIfNew:true}),store.setJSON(keys[2],data(0),{onlyIfNew:true})]);
       results.race=race.filter(r=>r.modified===true).length===1&&race.filter(r=>r.modified===false).length===1;
       const value=`${run}.${Date.now()+60000}`;
-      const response=await fetcher(target,{method:'POST',headers:{'X-Preview-Diagnostic-Token':c.token,'X-Preview-Diagnostic-Receipt':`${value}.${sign(value,c.token)}`},signal:AbortSignal.timeout(10000),redirect:'error'});
-      const read:unknown=await response.json();
+      const started=Date.now();
+      const trace=(stage:string,fields:Record<string,string|boolean|number|null>={})=>{
+        try {log({event:'preview_blobs_cross_request_failure',stage,durationMs:Math.max(0,Date.now()-started),sameOrigin:target.origin===new URL(request.url).origin,targetKind:'preview-alias',...fields});} catch { /* Diagnostics never alter execution. */ }
+      };
+      trace('fetch_start');
+      let response:Response;
+      try {
+        response=await fetcher(target,{method:'POST',headers:{'X-Preview-Diagnostic-Token':c.token,'X-Preview-Diagnostic-Receipt':`${value}.${sign(value,c.token)}`},signal:AbortSignal.timeout(10000),redirect:'error'});
+      } catch(error) {
+        const name=error instanceof Error && ['TimeoutError','AbortError','TypeError','Error'].includes(error.name)?error.name:'UnknownError';
+        trace(name==='TimeoutError'?'timeout':'fetch_error',{errorName:name});throw error;
+      }
+      // Never emit arbitrary upstream header values, including Content-Type parameters.
+      const mime=response.headers.get('content-type')?.split(';',1)[0].trim().toLowerCase();
+      const contentType=mime===undefined?null:['application/json','text/html','text/plain','application/problem+json'].includes(mime)?mime:'other';
+      const metadata={httpStatus:response.status,contentType,redirected:response.redirected,responseOk:response.ok};
+      trace('response_received',metadata);
+      if(response.redirected || response.status>=300&&response.status<400) trace('redirect_detected',metadata);
+      if(!response.ok) trace('http_status_invalid',metadata);
+      if(mime!=='application/json') trace('content_type_invalid',metadata);
+      let read:unknown;
+      try {read=await response.json();} catch(error) {trace('json_parse_error',metadata);throw error;}
+      if(!read||typeof read!=='object'||!('persisted' in read)||typeof read.persisted!=='boolean') trace('payload_shape_invalid',metadata);
       results.crossRequest=response.ok&&!!read&&typeof read==='object'&&'persisted' in read&&read.persisted===true;
+      if(!results.crossRequest) trace('cross_request_result_false',metadata);
     } catch {failed=true;}
     finally {
       if(store) {const removed=await Promise.allSettled(keys.map(k=>store!.delete(k)));cleanup=removed.every(r=>r.status==='fulfilled');}

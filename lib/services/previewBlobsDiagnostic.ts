@@ -13,7 +13,7 @@ const equal=(a:string,b:string)=>{const x=Buffer.from(a),y=Buffer.from(b);return
 const sign=(value:string,token:string)=>createHmac('sha256',token).update(value).digest('hex');
 const respond=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 export function createPreviewBlobsDiagnostic(
-  config:()=>Config=()=>({context:process.env.CONTEXT,enabled:process.env.PREVIEW_BLOBS_DIAGNOSTICS_ENABLED,token:process.env.PREVIEW_BLOBS_DIAGNOSTIC_TOKEN,url:process.env.DEPLOY_PRIME_URL}),
+  config:()=>Config=()=>({context:process.env.PREVIEW_DIAGNOSTIC_BUILD_CONTEXT,enabled:process.env.PREVIEW_BLOBS_DIAGNOSTICS_ENABLED,token:process.env.PREVIEW_BLOBS_DIAGNOSTIC_TOKEN,url:process.env.PREVIEW_DIAGNOSTIC_BUILD_URL}),
   storeFactory:()=>Store=()=>getDeployStore({name:'preview-blobs-diagnostic',consistency:'strong',fetch:createNewsBlobFetch()}),
   fetcher:typeof fetch=fetch,
   log:(fields:Record<string,string|boolean|number|null>)=>void=fields=>console.warn(JSON.stringify(fields)),

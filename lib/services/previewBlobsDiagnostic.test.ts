@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createPreviewBlobsDiagnostic } from './previewBlobsDiagnostic';
+import { netlifyDiagnosticBuildMetadata } from '../../next.config';
 const url='https://deploy-preview-1--fixture.netlify.app/api/diagnostics/blobs';
 const token=randomBytes(32).toString('hex');
 const config={context:'deploy-preview',enabled:'true',token,url};
@@ -83,4 +84,20 @@ test('valid gate emits no denial log and logger failure still denies without sto
   assert.equal((await valid(request())).status,503);assert.equal(logs,0);
   const denied=createPreviewBlobsDiagnostic(()=>({...config,enabled:undefined}),()=>{throw Error('must not acquire');},fetch,()=>{throw Error(token);});
   const response=await denied(request());assert.equal(response.status,403);assert.equal(await response.text(),'{"status":"DENIED"}');
+});
+test('build metadata accepts platform Preview only and never captures secrets',()=>{
+  assert.deepEqual(netlifyDiagnosticBuildMetadata({NETLIFY:'true',CONTEXT:'deploy-preview',DEPLOY_PRIME_URL:url,PREVIEW_BLOBS_DIAGNOSTIC_TOKEN:token}),{PREVIEW_DIAGNOSTIC_BUILD_CONTEXT:'deploy-preview',PREVIEW_DIAGNOSTIC_BUILD_URL:new URL(url).origin});
+  for(const env of [{},{CONTEXT:'deploy-preview'},{NETLIFY:'true'},{NETLIFY:'true',CONTEXT:'invalid'}]) assert.equal(netlifyDiagnosticBuildMetadata(env).PREVIEW_DIAGNOSTIC_BUILD_CONTEXT,'unknown');
+  for(const context of ['production','branch-deploy']) {
+    const metadata=netlifyDiagnosticBuildMetadata({NETLIFY:'true',CONTEXT:context,DEPLOY_PRIME_URL:url});
+    assert.equal(metadata.PREVIEW_DIAGNOSTIC_BUILD_CONTEXT,context);assert.equal(metadata.PREVIEW_DIAGNOSTIC_BUILD_URL,'');
+  }
+});
+test('spoofed Host/context headers cannot override missing or Production build context',async()=>{
+  for(const context of [undefined,'production','branch-deploy','unknown']) {
+    let acquisitions=0;
+    const route=createPreviewBlobsDiagnostic(()=>({...config,context}),()=>{acquisitions++;throw Error();},fetch,()=>{});
+    const response=await route(request({Host:'deploy-preview-1--fixture.netlify.app','X-Netlify-Context':'deploy-preview','X-Forwarded-Host':'deploy-preview-1--fixture.netlify.app'}));
+    assert.equal(response.status,403);assert.equal(acquisitions,0);
+  }
 });

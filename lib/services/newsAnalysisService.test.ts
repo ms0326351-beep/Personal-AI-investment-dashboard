@@ -189,3 +189,81 @@ test('diagnostic logging retains only classification, field paths and status',as
   const output=JSON.stringify(logs.mock.calls.map(c=>c.arguments));
   assert.match(output,/internal/);assert.doesNotMatch(output,/private-key-private-payload/);
 });
+
+test('production shared-storage outage stops provider calls without a service memory bypass',async()=>{
+  let calls=0;
+  const cache=createNewsAnalysisCache(()=>{throw Error('offline')},Date.now,()=>{},()=>true);
+  const s=setup({async analyzeNews(){calls++;return market}},{cache,requireSharedCoordination:()=>true});
+  const result=await s.getOrCreateAnalysis(item,[],[]);
+  assert.equal(result.status,'unavailable');assert.match(result.unavailableReason??'',/快取或協調/);
+  assert.equal(calls,0);
+});
+
+test('production throwing coordination adapter cannot use service memory to issue a paid call',async()=>{
+  let calls=0;const cache=createNewsAnalysisCache(()=>store());
+  const broken={...cache,async acquireLease(){throw Error('private-store-error')}};
+  const s=setup({async analyzeNews(){calls++;return market}},{cache:broken,requireSharedCoordination:()=>true});
+  const result=await s.getOrCreateAnalysis(item,[],[]);
+  assert.equal(result.status,'unavailable');assert.equal(calls,0);
+  assert.doesNotMatch(JSON.stringify(result),/private-store-error/);
+});
+
+test('production failed provider attempts spend the shared daily budget across instances and retry',async()=>{
+  const blobs=store();let calls=0,time=Date.now();
+  const provider={async analyzeNews(){calls++;throw new NewsAnalysisError('timeout','等待逾時')}};
+  const options={provider,dailyLimit:()=>1,requireSharedCoordination:()=>true,now:()=>time};
+  const a=setup(provider,{...options,cache:createNewsAnalysisCache(()=>blobs,()=>time,()=>{},()=>true)});
+  assert.equal((await a.getOrCreateAnalysis(item,[],[])).errorCode,'timeout');
+  time+=31000;
+  const b=setup(provider,{...options,cache:createNewsAnalysisCache(()=>blobs,()=>time,()=>{},()=>true)});
+  assert.equal((await b.getOrCreateAnalysis(item,[],[],true)).errorCode,'daily_limit');
+  assert.equal((await b.getOrCreateAnalysis({...item,id:'rss-other'},[],[])).errorCode,'daily_limit');
+  assert.equal(calls,1);
+  time+=86400000;
+  assert.equal((await b.getOrCreateAnalysis({...item,id:'rss-next-day'},[],[])).errorCode,'timeout');
+  assert.equal(calls,2);
+});
+
+test('production cached success is still served during storage outage without another provider call',async()=>{
+  const blobs=store();let offline=false,calls=0;
+  const cache=createNewsAnalysisCache(()=>{if(offline)throw Error('offline');return blobs},Date.now,()=>{},()=>true);
+  const s=setup({async analyzeNews(){calls++;return market}},{cache,requireSharedCoordination:()=>true});
+  assert.equal((await s.getOrCreateAnalysis(item,[],[])).status,'ok');offline=true;
+  assert.equal((await s.getOrCreateAnalysis(item,[],[],true)).status,'ok');assert.equal(calls,1);
+});
+
+test('production budget write failure after a shared lease still makes zero provider calls',async()=>{
+  const blobs=store();let calls=0;
+  const cache=createNewsAnalysisCache(()=>({...blobs,async setJSON(key,value,condition){
+    if(key.startsWith('budget:'))throw Error('private-budget-failure');
+    return blobs.setJSON(key,value,condition);
+  }}),Date.now,()=>{},()=>true);
+  const s=setup({async analyzeNews(){calls++;return market}},{cache,requireSharedCoordination:()=>true});
+  const result=await s.getOrCreateAnalysis(item,[],[]);
+  assert.equal(result.status,'unavailable');assert.equal(calls,0);
+  assert.doesNotMatch(JSON.stringify(result),/private-budget-failure/);
+});
+
+test('production shared provider capacity caps concurrency across instances and releases on completion',async()=>{
+  const blobs=store();let active=0,max=0;const releases:(()=>void)[]=[];
+  const provider={async analyzeNews(){active++;max=Math.max(max,active);await new Promise<void>(r=>releases.push(r));active--;return market;}};
+  const create=()=>setup(provider,{cache:createNewsAnalysisCache(()=>blobs,Date.now,()=>{},()=>true),requireSharedCoordination:()=>true,dailyLimit:()=>10});
+  const first=create().getOrCreateAnalysis({...item,id:'rss-capacity-a'},[],[]);
+  const second=create().getOrCreateAnalysis({...item,id:'rss-capacity-b'},[],[]);
+  for(let i=0;i<100&&releases.length<2;i++)await new Promise<void>(r=>setImmediate(r));
+  assert.equal(releases.length,2);
+  const third=await create().getOrCreateAnalysis({...item,id:'rss-capacity-c'},[],[]);
+  assert.equal(third.errorCode,'rate_limit');assert.equal(max,2);
+  releases.splice(0).forEach(r=>r());await Promise.all([first,second]);
+  const next=create().getOrCreateAnalysis({...item,id:'rss-capacity-d'},[],[]);
+  for(let i=0;i<100&&releases.length<1;i++)await new Promise<void>(r=>setImmediate(r));
+  assert.equal(releases.length,1);releases.splice(0).forEach(r=>r());assert.equal((await next).status,'ok');
+});
+
+test('slow shared coordination refuses to start a provider call near article lease expiry',async()=>{
+  const blobs=store();let time=0,calls=0;
+  const cache=createNewsAnalysisCache(()=>blobs,()=>time,()=>{},()=>true);
+  const slow={...cache,async reserveBudget(date:string,limit:number,token:string){const result=await cache.reserveBudget(date,limit,token);time+=46000;return result;}};
+  const service=setup({async analyzeNews(){calls++;return market}},{cache:slow,now:()=>time,requireSharedCoordination:()=>true});
+  assert.equal((await service.getOrCreateAnalysis(item,[],[])).status,'unavailable');assert.equal(calls,0);
+});

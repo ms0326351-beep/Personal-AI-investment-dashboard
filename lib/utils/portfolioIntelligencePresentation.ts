@@ -32,7 +32,7 @@ export function presentPortfolioIntelligence(summary:PortfolioExposureSummary,fo
     groups.push({title:'重複曝險',status:lt.status,note:'ETF 交集率是兩檔基金成分的交集，不是投組額外曝險；不可再加到持股比例。',metrics:[...lt.companyConcentration.buckets.filter(b=>b.direct>0 && b.indirect>0).map(b=>({label:name(b.companyEntityId),value:`直接 ＋ ETF 間接合計 ${exposurePercent(b.combined)}`})),...lt.overlaps.map(o=>({label:`${name(o.leftEtfAssetId)} / ${name(o.rightEtfAssetId)}`,value:`${o.status} · 已知交集 ${exposurePercent(o.knownOverlap)}`}))]});
   }
   return {version:1,newsId:news?.newsId ?? null,status:news?.status ?? lt?.status ?? 'UNKNOWN',asOf:summary.asOf,
-    notes:['曝險表示條件式關聯，不代表因果已證實、價格預測或買賣建議。','持股來源目前為模擬投組；持股比例估算沿用行情與模擬匯率，與已確認曝險分開。',...(news?.truncated?['路徑已達上限，結果僅為部分。']:[]),...(news?.gaps.some(g=>g.reason==='stale_relationship')?['部分關聯已過期並排除，不能視為完整結果。']:[]),...(news?.gaps.some(g=>g.reason==='conflicting_evidence')?['關聯含衝突證據，方向仍不確定。']:[]),...(!foundation.relationships.length?['尚未提供經審核的公司／產業／供應鏈關聯與 ETF 成分快照；目前僅能比對新聞點名的資產。']:[])],
+    notes:['曝險表示條件式關聯，不代表因果已證實、價格預測或買賣建議。','持股來源為 Demo / Sample 投組；比例估算沿用行情與頁面標示的匯率（可能使用示範備援），與已確認曝險分開。',...(news?.truncated?['路徑已達上限，結果僅為部分。']:[]),...(news?.gaps.some(g=>g.reason==='stale_relationship')?['部分關聯已過期並排除，不能視為完整結果。']:[]),...(news?.gaps.some(g=>g.reason==='conflicting_evidence')?['關聯含衝突證據，方向仍不確定。']:[]),...(!foundation.relationships.length?['尚未提供經審核的公司／產業／供應鏈關聯與 ETF 成分快照；目前僅能比對新聞點名的資產。']:[])],
     holdings:news?.holdings.map(h=>{
       const matches=news.connections.filter(c=>c.ownership.positionId===h.positionId);
       const unique=[...new Map(matches.filter(c=>c.confidence!=='unknown').map(c=>[c.ownership.id,c.ownership])).values()];

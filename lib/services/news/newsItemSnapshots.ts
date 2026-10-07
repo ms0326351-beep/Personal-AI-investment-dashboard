@@ -1,5 +1,5 @@
 import 'server-only';
-import { getStore } from '@netlify/blobs';
+import { getNewsBlobStore } from './newsBlobStore';
 import type { NewsItem } from '../../types';
 import type { AnalysisBlobStore } from '../ai/newsAnalysisCache';
 import { fetchRealNews } from './realNewsProvider';
@@ -20,7 +20,7 @@ function isEntry(value:unknown):value is Entry {
  * One bounded snapshot blob avoids one network write per news card.
  */
 export function createNewsItemSnapshots(
-  storeFactory:()=>AnalysisBlobStore=()=>getStore({name:'news-source-snapshots',consistency:'strong',fetch:(url,init)=>fetch(url,{...init,signal:AbortSignal.timeout(3000)})}),
+  storeFactory:()=>AnalysisBlobStore=()=>getNewsBlobStore('news-source-snapshots'),
   now=Date.now,
   warn=()=>console.warn('[news-input] Persistent snapshots unavailable; retaining RSS items in process memory.'),
 ) {

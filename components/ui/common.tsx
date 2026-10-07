@@ -24,6 +24,7 @@ export function NewsList({items}:{items:NewsItem[]}) {
       {n.fallbackReason&&<small className="muted" role="status" style={{display:'block'}}>{n.fallbackReason}</small>}
       <h3>{url?<a href={url} target="_blank" rel="noopener noreferrer">{n.title}</a>:n.title}</h3>
       <p>{n.summary}</p>
+      {n.origin==='rss'&&<Link className="text-link" href={`/news/${encodeURIComponent(n.id)}`}>新聞詳細資料 →</Link>}
       {(n.relatedSymbols.length>0||people.length>0)&&<div className="tags" style={{flexWrap:'wrap'}}>
         {n.relatedSymbols.map(s=><Link href={`/stock/${encodeURIComponent(s)}`} key={s}>{s}</Link>)}
         {people.map(p=><Link href={`/people#${p.id}`} key={`person-${p.id}`}>人物：{p.name}</Link>)}

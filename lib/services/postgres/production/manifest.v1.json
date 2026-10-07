@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "sec-production-manifest-v1",
+  "migrations": [
+    {
+      "id": "sec_ingestion_v1",
+      "version": 1,
+      "filename": "001_sec_ingestion.sql",
+      "sha256": "eb321badf0a7159c79062328bc05555d6e1163951373464602e3e379372863e5",
+      "order": 1,
+      "purpose": "SEC filings, supported non-derivative rows, atomic audit and exact NUMERIC provenance",
+      "minimumPostgresVersion": 18,
+      "transactional": true,
+      "dependencies": [],
+      "productionApplicable": true
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { validateForm4Source } from './secForm4';
 
 interface XmlNode { name: string; path: string; text: string; attributes: Record<string, string>; children: XmlNode[] }
 const MAX_XML_LENGTH = 2_000_000;
-const PARSER_VERSION = 'form4-xml-v1';
+export const SEC_FORM4_PARSER_VERSION = 'form4-xml-v1';
 
 /** Strict well-formed XML only; no DTDs, external entities, network or error recovery. */
 function readXml(xml: string): XmlNode {
@@ -187,7 +187,7 @@ export function parseForm4Xml(xml: string, context: Form4XmlContext): Form4XmlRe
       issuer, issuerTicker: read(issuerNode, 'issuerTradingSymbol'), filers: [], reportingOwners: owners, transactions, footnotes,
       amendment: { kind: filingType === '4' ? 'original' : 'unknown', previousFilingId: null },
       provenance: { sourceAuthority: 'SEC', sourceIdentifier: context.sourceIdentifier, sourceUrl: context.sourceUrl ?? null,
-        filingUrl: context.filingUrl ?? null, origin: context.origin, parserVersion: PARSER_VERSION, evidence: evidence(root) },
+        filingUrl: context.filingUrl ?? null, origin: context.origin, parserVersion: SEC_FORM4_PARSER_VERSION, evidence: evidence(root) },
       parseStatus: result.issues.length ? 'PARTIAL' : 'KNOWN', normalizationStatus: 'UNKNOWN',
     };
     validateForm4Source(source);

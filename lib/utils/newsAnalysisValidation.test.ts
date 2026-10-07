@@ -96,7 +96,7 @@ test('failed and timed-out requests release pending entries and concurrent retri
 test('HTTP and malformed response failures can be retried without bypass parameters',async()=>{
   const previous=globalThis.fetch;
   try {
-    for(const response of [new Response('',{status:503}),new Response('not json'),new Response(JSON.stringify({...result,newsId:'rss-other'}))]) {
+    for(const response of [new Response('',{status:500}),new Response('not json'),new Response(JSON.stringify({...result,newsId:'rss-other'}))]) {
       let calls=0;
       globalThis.fetch=async(url)=>{
         assert.equal(url,'/api/news/rss-test/analysis');
@@ -104,6 +104,22 @@ test('HTTP and malformed response failures can be retried without bypass paramet
       };
       await assert.rejects(requestAnalysis(result.newsId));
       assert.deepEqual(await requestAnalysis(result.newsId),result);assert.equal(calls,2);
+    }
+  } finally {globalThis.fetch=previous;}
+});
+
+test('429/503 request guards preserve safe unavailable UI and retry countdown without trusting error bodies',async()=>{
+  const previous=globalThis.fetch;
+  try {
+    for(const status of [429,503]) {
+      globalThis.fetch=async(_url,init)=>{
+        assert.equal(new Headers(init?.headers).get('X-News-Analysis-Request'),'1');
+        return new Response('private backend detail',{status,headers:{'Retry-After':'30'}});
+      };
+      const unavailable=await requestAnalysis('rss-guard');
+      assert.equal(isNewsAIResponse(unavailable),true);assert.equal(unavailable.status,'unavailable');assert.ok(unavailable.retryAt);
+      const html=renderToStaticMarkup(createElement(NewsAIAnalysisContent,{result:unavailable,onRetry:()=>{}}));
+      assert.match(html,/重試 AI 分析/);assert.match(html,/disabled/);assert.doesNotMatch(html,/private backend detail/);
     }
   } finally {globalThis.fetch=previous;}
 });

@@ -16,10 +16,19 @@ export function createPreviewBlobsDiagnostic(
   config:()=>Config=()=>({context:process.env.CONTEXT,enabled:process.env.PREVIEW_BLOBS_DIAGNOSTICS_ENABLED,token:process.env.PREVIEW_BLOBS_DIAGNOSTIC_TOKEN,url:process.env.DEPLOY_PRIME_URL}),
   storeFactory:()=>Store=()=>getDeployStore({name:'preview-blobs-diagnostic',consistency:'strong',fetch:createNewsBlobFetch()}),
   fetcher:typeof fetch=fetch,
+  log:(fields:Record<string,string|boolean|number|null>)=>void=fields=>console.warn(JSON.stringify(fields)),
 ) {
   return async function POST(request:Request):Promise<Response> {
     const c=config();
-    if(c.context!=='deploy-preview'||c.enabled!=='true'||!c.token||c.token.length<32||!equal(request.headers.get('X-Preview-Diagnostic-Token')??'',c.token)) return respond({status:'DENIED'},403);
+    const header=request.headers.get('X-Preview-Diagnostic-Token');
+    const tokenMatch=Boolean(c.token)&&equal(header??'',c.token??'');
+    if(c.context!=='deploy-preview'||c.enabled!=='true'||!c.token||c.token.length<32||!tokenMatch) {
+      // Allowlisted metadata only: never serialize config, request or secret values.
+      try {log({event:'preview_blobs_gate_denied',context:c.context===undefined?null:['production','deploy-preview','branch-deploy','dev'].includes(c.context)?c.context:'unknown',
+        contextOk:c.context==='deploy-preview',enabledPresent:typeof c.enabled==='string',enabledOk:c.enabled==='true',
+        envTokenPresent:Boolean(c.token),envTokenLength:c.token?.length??0,headerPresent:Boolean(header),headerLength:header?.length??0,tokenMatch});} catch { /* Logging must not change fail-closed behavior. */ }
+      return respond({status:'DENIED'},403);
+    }
     if(request.body!==null||new URL(request.url).search) return respond({status:'INVALID_REQUEST'},400);
     const receipt=request.headers.get('X-Preview-Diagnostic-Receipt');
     if(receipt) {

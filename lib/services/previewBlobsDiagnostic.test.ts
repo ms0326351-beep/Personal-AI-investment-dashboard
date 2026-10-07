@@ -54,3 +54,33 @@ test('wrong preview target refuses storage operations',async()=>{
   const f=fixture();const response=await createPreviewBlobsDiagnostic(()=>({...config,url:'https://example.com'}),()=>f.store)(request());
   assert.equal(response.status,503);assert.equal(f.operations(),0);
 });
+
+test('gate denial logs exactly safe metadata before any store acquisition',async()=>{
+  const mismatch=randomBytes(32).toString('hex');
+  const cases=[
+    {c:{...config,context:'production'},header:token},
+    {c:{...config,context:'branch-deploy'},header:token},
+    {c:{...config,enabled:'false'},header:token},
+    {c:{...config,token:undefined},header:token},
+    {c:config,header:undefined},
+    {c:config,header:mismatch},
+  ];
+  for(const {c,header} of cases) {
+    const logs:Record<string,string|boolean|number|null>[]=[];let acquisitions=0;
+    const route=createPreviewBlobsDiagnostic(()=>c,()=>{acquisitions++;throw Error('must not acquire');},fetch,fields=>logs.push(fields));
+    const response=await route(new Request(url,{method:'POST',headers:header?{'X-Preview-Diagnostic-Token':header}:{}}));
+    assert.equal(response.status,403);assert.deepEqual(await response.json(),{status:'DENIED'});
+    assert.equal(acquisitions,0);assert.equal(logs.length,1);
+    assert.deepEqual(Object.keys(logs[0]).sort(),['event','context','contextOk','enabledPresent','enabledOk','envTokenPresent','envTokenLength','headerPresent','headerLength','tokenMatch'].sort());
+    const text=JSON.stringify(logs);assert.ok(!text.includes(token));assert.ok(!text.includes(mismatch));
+    assert.equal(logs[0].envTokenLength,c.token?.length??0);assert.equal(logs[0].headerLength,header?.length??0);
+    assert.equal(logs[0].tokenMatch,Boolean(c.token)&&header===c.token);
+  }
+});
+test('valid gate emits no denial log and logger failure still denies without storage',async()=>{
+  let logs=0;
+  const valid=createPreviewBlobsDiagnostic(()=>({...config,url:'https://example.com'}),()=>{throw Error('must not acquire');},fetch,()=>{logs++;});
+  assert.equal((await valid(request())).status,503);assert.equal(logs,0);
+  const denied=createPreviewBlobsDiagnostic(()=>({...config,enabled:undefined}),()=>{throw Error('must not acquire');},fetch,()=>{throw Error(token);});
+  const response=await denied(request());assert.equal(response.status,403);assert.equal(await response.text(),'{"status":"DENIED"}');
+});

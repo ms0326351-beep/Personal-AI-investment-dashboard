@@ -29,7 +29,15 @@ export function createPreviewBlobsDiagnostic(
         envTokenPresent:Boolean(c.token),envTokenLength:c.token?.length??0,headerPresent:Boolean(header),headerLength:header?.length??0,tokenMatch});} catch { /* Logging must not change fail-closed behavior. */ }
       return respond({status:'DENIED'},403);
     }
-    if(request.body!==null||new URL(request.url).search) return respond({status:'INVALID_REQUEST'},400);
+    if(request.body!==null||new URL(request.url).search) {
+      const length=request.headers.get('content-length');
+      const numericLength=length!==null&&/^\d{1,15}$/.test(length)&&Number.isSafeInteger(Number(length))?Number(length):null;
+      try {log({event:'preview_blobs_invalid_request',method:['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'].includes(request.method)?request.method:'OTHER',
+        urlHasQuery:Boolean(new URL(request.url).search),bodyIsNull:request.body===null,
+        contentLengthPresent:request.headers.has('content-length'),contentLength:numericLength,
+        contentTypePresent:request.headers.has('content-type'),transferEncodingPresent:request.headers.has('transfer-encoding')});} catch { /* Logging cannot alter validation. */ }
+      return respond({status:'INVALID_REQUEST'},400);
+    }
     const receipt=request.headers.get('X-Preview-Diagnostic-Receipt');
     if(receipt) {
       const [run,expires,signature,...extra]=receipt.split('.');

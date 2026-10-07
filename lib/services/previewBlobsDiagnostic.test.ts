@@ -101,3 +101,32 @@ test('spoofed Host/context headers cannot override missing or Production build c
     assert.equal(response.status,403);assert.equal(acquisitions,0);
   }
 });
+test('request-shape instrumentation accepts native bodyless representation without logging',async()=>{
+  const logs:unknown[]=[];let acquisitions=0;
+  const route=createPreviewBlobsDiagnostic(()=>({...config,url:'https://example.com'}),()=>{acquisitions++;throw Error();},fetch,fields=>logs.push(fields));
+  const r=request();assert.equal(r.body,null);
+  assert.equal((await route(r)).status,503); // Passed request validator; target deliberately unavailable.
+  assert.equal(acquisitions,0);assert.deepEqual(logs,[]);
+});
+test('invalid body/query shape logs only safe metadata and never acquires storage',async()=>{
+  const secretBody=randomBytes(24).toString('hex');
+  const requests=[request({'content-length':'3'},url,secretBody),request({},`${url}?secret=${secretBody}`),
+    request({'content-length':secretBody,'content-type':secretBody,'transfer-encoding':secretBody},url,secretBody)];
+  for(const r of requests) {
+    const logs:Record<string,string|boolean|number|null>[]=[];let acquisitions=0;
+    const route=createPreviewBlobsDiagnostic(()=>config,()=>{acquisitions++;throw Error();},fetch,fields=>logs.push(fields));
+    const response=await route(r);assert.equal(response.status,400);assert.deepEqual(await response.json(),{status:'INVALID_REQUEST'});
+    assert.equal(acquisitions,0);assert.equal(logs.length,1);
+    assert.deepEqual(Object.keys(logs[0]).sort(),['event','method','urlHasQuery','bodyIsNull','contentLengthPresent','contentLength','contentTypePresent','transferEncodingPresent'].sort());
+    const text=JSON.stringify(logs);assert.ok(!text.includes(token));assert.ok(!text.includes(secretBody));
+    assert.equal(logs[0].bodyIsNull,r.body===null);assert.equal(logs[0].urlHasQuery,Boolean(new URL(r.url).search));
+    assert.equal(logs[0].contentLength,r.headers.get('content-length')==='3'?3:null);
+  }
+});
+test('non-null empty stream remains rejected and logger failure cannot change 400',async()=>{
+  const route=createPreviewBlobsDiagnostic(()=>config,()=>{throw Error('must not acquire');},fetch,()=>{throw Error(token);});
+  const r=new Request(url,{method:'POST',headers:{'X-Preview-Diagnostic-Token':token},body:''});
+  assert.notEqual(r.body,null);
+  const response=await route(r);
+  assert.equal(response.status,400);assert.deepEqual(await response.json(),{status:'INVALID_REQUEST'});
+});

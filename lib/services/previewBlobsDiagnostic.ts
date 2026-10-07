@@ -12,6 +12,28 @@ type Config={context?:string;enabled?:string;token?:string;url?:string};
 const equal=(a:string,b:string)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length && timingSafeEqual(x,y);};
 const sign=(value:string,token:string)=>createHmac('sha256',token).update(value).digest('hex');
 const respond=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
+async function hasEmptyBody(request:Request):Promise<boolean> {
+  if(request.body===null) return true;
+  let reader:ReadableStreamDefaultReader<Uint8Array>|undefined;
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try {
+    reader=request.body.getReader();
+    const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Body inspection timeout')),3000);});
+    for(;;) {
+      const chunk=await Promise.race([reader.read(),timeout]);
+      if(chunk.done) return true;
+      if(chunk.value.byteLength>0) return false;
+    }
+  } catch {return false;}
+  finally {
+    if(timer) clearTimeout(timer);
+    if(reader) {
+      // Do not await untrusted stream cancellation; stop after the first payload byte.
+      void reader.cancel().catch(()=>{});
+      try {reader.releaseLock();} catch { /* A timed-out read may still be pending. */ }
+    }
+  }
+}
 export function createPreviewBlobsDiagnostic(
   config:()=>Config=()=>({context:process.env.PREVIEW_DIAGNOSTIC_BUILD_CONTEXT,enabled:process.env.PREVIEW_BLOBS_DIAGNOSTICS_ENABLED,token:process.env.PREVIEW_BLOBS_DIAGNOSTIC_TOKEN,url:process.env.PREVIEW_DIAGNOSTIC_BUILD_URL}),
   storeFactory:()=>Store=()=>getDeployStore({name:'preview-blobs-diagnostic',consistency:'strong',fetch:createNewsBlobFetch()}),
@@ -29,7 +51,7 @@ export function createPreviewBlobsDiagnostic(
         envTokenPresent:Boolean(c.token),envTokenLength:c.token?.length??0,headerPresent:Boolean(header),headerLength:header?.length??0,tokenMatch});} catch { /* Logging must not change fail-closed behavior. */ }
       return respond({status:'DENIED'},403);
     }
-    if(request.body!==null||new URL(request.url).search) {
+    if(new URL(request.url).search || !await hasEmptyBody(request)) {
       const length=request.headers.get('content-length');
       const numericLength=length!==null&&/^\d{1,15}$/.test(length)&&Number.isSafeInteger(Number(length))?Number(length):null;
       try {log({event:'preview_blobs_invalid_request',method:['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'].includes(request.method)?request.method:'OTHER',

@@ -123,10 +123,51 @@ test('invalid body/query shape logs only safe metadata and never acquires storag
     assert.equal(logs[0].contentLength,r.headers.get('content-length')==='3'?3:null);
   }
 });
-test('non-null empty stream remains rejected and logger failure cannot change 400',async()=>{
+test('logger failure cannot change non-empty body rejection',async()=>{
   const route=createPreviewBlobsDiagnostic(()=>config,()=>{throw Error('must not acquire');},fetch,()=>{throw Error(token);});
-  const r=new Request(url,{method:'POST',headers:{'X-Preview-Diagnostic-Token':token},body:''});
+  const r=new Request(url,{method:'POST',headers:{'X-Preview-Diagnostic-Token':token},body:'x'});
   assert.notEqual(r.body,null);
   const response=await route(r);
   assert.equal(response.status,400);assert.deepEqual(await response.json(),{status:'INVALID_REQUEST'});
+});
+function streamRequest(stream:ReadableStream<Uint8Array>,query='') {
+  return new Request(url+query,{method:'POST',headers:{'X-Preview-Diagnostic-Token':token},body:stream,duplex:'half'} as RequestInit);
+}
+test('Netlify-like non-null zero-byte stream passes and completes disposable diagnostic',async()=>{
+  const f=fixture();
+  const readRoute=createPreviewBlobsDiagnostic(()=>config,()=>f.store);
+  const route=createPreviewBlobsDiagnostic(()=>config,()=>f.store,async(input,init)=>readRoute(new Request(input,init)));
+  const r=streamRequest(new ReadableStream({start(c){c.enqueue(new Uint8Array(0));c.close();}}));
+  assert.notEqual(r.body,null);
+  const response=await route(r);assert.equal(response.status,200);assert.equal((await response.json()).status,'PASS');assert.equal(f.values.size,0);
+});
+test('one-byte/text payload and empty/non-empty query reject before store acquisition',async()=>{
+  const cases=[request({},url,'x'),request({},url,'normal text'),streamRequest(new ReadableStream({start(c){c.close();}}),'?x=1'),request({},url+'?x=1','x')];
+  for(const r of cases) {
+    let acquisitions=0;
+    const route=createPreviewBlobsDiagnostic(()=>config,()=>{acquisitions++;throw Error();},fetch,()=>{});
+    const response=await route(r);assert.equal(response.status,400);assert.deepEqual(await response.json(),{status:'INVALID_REQUEST'});assert.equal(acquisitions,0);
+  }
+});
+test('errored stream fails closed and invalid gate never inspects body',async()=>{
+  let acquisitions=0;
+  const factory=()=>{acquisitions++;throw Error('must not acquire');};
+  const r=streamRequest(new ReadableStream({start(c){c.error(Error(token));}}));
+  const route=createPreviewBlobsDiagnostic(()=>config,factory,fetch,()=>{});
+  assert.equal((await route(r)).status,400);assert.equal(acquisitions,0);
+  const denied=request();Object.defineProperty(denied,'body',{get(){throw Error('body must not be inspected');}});
+  const invalid=createPreviewBlobsDiagnostic(()=>({...config,enabled:'false'}),factory,fetch,()=>{});
+  assert.equal((await invalid(denied)).status,403);assert.equal(acquisitions,0);
+});
+test('payload detection cancels immediately without waiting for more body',async()=>{
+  let cancelled=false;
+  const r=streamRequest(new ReadableStream({start(c){c.enqueue(new Uint8Array([1]));},cancel(){cancelled=true;}}));
+  const route=createPreviewBlobsDiagnostic(()=>config,()=>{throw Error('must not acquire');},fetch,()=>{});
+  assert.equal((await route(r)).status,400);assert.equal(cancelled,true);
+});
+test('stalled body inspection times out fail closed before storage',async()=>{
+  let acquisitions=0;
+  const route=createPreviewBlobsDiagnostic(()=>config,()=>{acquisitions++;throw Error();},fetch,()=>{});
+  const response=await route(streamRequest(new ReadableStream()));
+  assert.equal(response.status,400);assert.equal(acquisitions,0);
 });

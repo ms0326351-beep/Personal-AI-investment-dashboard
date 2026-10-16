@@ -4,6 +4,7 @@ import { portfolioRepository } from '@/lib/services/portfolioRepository';
 import { watchlistRepository } from '@/lib/services/watchlistRepository';
 import type { NewsAIAnalysis } from '@/lib/types/newsAnalysis';
 import { resolveNewsForAnalysis } from '@/lib/services/news/newsItemSnapshots';
+import { analysisRequestError, analysisRequestGuard } from '@/lib/services/newsAnalysisGuard';
 
 export const runtime='nodejs';
 const respond=(result:NewsAIAnalysis) => Response.json(
@@ -14,6 +15,10 @@ const respond=(result:NewsAIAnalysis) => Response.json(
 export async function POST(_request:Request, context:{params:Promise<{id:string}>}) {
   let id='';
   try {
+    const invalid=await analysisRequestError(_request);
+    if(invalid) return Response.json({message:invalid.message},{status:invalid.status,headers:{'Cache-Control':'private, no-store'}});
+    const limited=await analysisRequestGuard.check();
+    if(limited) return Response.json({message:limited.message},{status:limited.status,headers:{'Cache-Control':'private, no-store','Retry-After':String(limited.retryAfter)}});
     id=(await context.params).id;
     if(!/^rss-[a-z0-9]{1,32}$/i.test(id)) return respond(unavailableNewsAnalysis(id.slice(0,64),'找不到可供分析的新聞內容'));
     const item=await resolveNewsForAnalysis(id);

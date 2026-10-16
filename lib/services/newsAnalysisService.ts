@@ -5,7 +5,7 @@ import type { CachedNewsAnalysis, NewsAIAnalysis } from '../types/newsAnalysis';
 import { peopleRegistry } from '../data/peopleRegistry';
 import { symbolAliases } from '../data/symbolAliases';
 import { computeNewsPortfolioImpact } from '../calculations/newsRelevance';
-import { createNewsAnalysisCache, newsAnalysisCache, buildCacheKey } from './ai/newsAnalysisCache';
+import { createNewsAnalysisCache, newsAnalysisCache, buildCacheKey, requiresSharedAnalysisCoordination, AnalysisCoordinationUnavailableError } from './ai/newsAnalysisCache';
 import { newsAnalysisProvider, getNewsAIModel, constrainMarketImpact } from './ai/newsAnalysisProvider';
 import { isDeepMarketImpact } from '../utils/deepNewsAnalysis';
 import { classifyAnalysisError } from './ai/newsAnalysisError';
@@ -39,14 +39,22 @@ export function createNewsAnalysisService(options: {
   now?:()=>number;
   schemaVersion?:string;
   wait?:()=>Promise<void>;
+  requireSharedCoordination?:()=>boolean;
 } = {}) {
   const cache=options.cache ?? newsAnalysisCache;
   const provider=options.provider ?? newsAnalysisProvider;
   const now=options.now ?? Date.now;
   const schemaVersion=options.schemaVersion ?? NEWS_ANALYSIS_SCHEMA_VERSION;
+  const requireSharedCoordination=options.requireSharedCoordination ?? requiresSharedAnalysisCoordination;
   const fallback=createNewsAnalysisCache(()=>{throw new Error('Memory only')},now,()=>{});
   const inFlight=new Map<string,Promise<CachedNewsAnalysis>>();
   const safe=async<T>(operation:()=>Promise<T>, backup:()=>Promise<T>):Promise<T>=>{try{return await operation()}catch{return backup()}};
+  const coordinate=async<T>(operation:()=>Promise<T>, backup:()=>Promise<T>):Promise<T>=>{
+    try{return await operation();}catch(error){
+      if(requireSharedCoordination() || error instanceof AnalysisCoordinationUnavailableError) throw error;
+      return backup();
+    }
+  };
   const unavailable=(id:string,model:string,reason=NEWS_AI_UNAVAILABLE):CachedNewsAnalysis=>{
     const {portfolio:_,...result}=unavailableNewsAnalysis(id,reason,model,now());
     return {...result,schemaVersion};
@@ -74,7 +82,8 @@ export function createNewsAnalysisService(options: {
   async function create(item:NewsItem,key:string,model:string,inputBasis:NewsInputBasis,retry:boolean):Promise<CachedNewsAnalysis> {
     const cached=await read(key,item,model,retry); if(cached) return cached;
     const token=randomUUID();
-    const acquired=await safe(()=>cache.acquireLease(key,token),()=>fallback.acquireLease(key,token));
+    const leaseStarted=now();
+    const acquired=await coordinate(()=>cache.acquireLease(key,token),()=>fallback.acquireLease(key,token));
     if(!acquired) {
       // Another function owns this news. Read its result, never issue a second GPT call.
       for(let attempt=0;attempt<20;attempt++) {
@@ -83,19 +92,29 @@ export function createNewsAnalysisService(options: {
       }
       return unavailable(item.id,model,'此新聞正在分析中，請稍後重新開啟頁面查看');
     }
-    let reserved=false,success=false;
+    let reserved=false,success=false,attempted=false,providerSlot='';
     const day=new Date(now()+8*3600000).toISOString().slice(0,10); // Asia/Taipei calendar day
     try {
       const again=await read(key,item,model,retry); if(again) return again;
       const limit=(options.dailyLimit ?? getNewsAIDailyLimit)();
-      reserved=await safe(()=>cache.reserveBudget(day,limit,token),()=>fallback.reserveBudget(day,limit,token));
+      reserved=await coordinate(()=>cache.reserveBudget(day,limit,token),()=>fallback.reserveBudget(day,limit,token));
       if(!reserved) {
         const result={...unavailable(item.id,model,'今日 AI 分析次數已達上限'),errorCode:'daily_limit'}; await save(key,result); return result;
       }
+      if(requireSharedCoordination() && limit>0) {
+        for(let i=0;i<2;i++) {
+          const slot=`provider-capacity:${i}`;
+          if(await coordinate(()=>cache.acquireLease(slot,token),()=>fallback.acquireLease(slot,token))) {providerSlot=slot;break;}
+        }
+        if(!providerSlot) return {...unavailable(item.id,model,'AI 分析繁忙，請稍後重試'),errorCode:'rate_limit',retryAt:new Date(now()+30000).toISOString()};
+      }
+      // Do not start a 30s provider call near the expiry of a 90s article lease.
+      if(requireSharedCoordination() && now()-leaseStarted>45000) return unavailable(item.id,model,'分析協調等待逾時，請稍後重試');
       let result:CachedNewsAnalysis;
       try {
         const candidatePersons=peopleRegistry.filter(p=>(item.relatedPersonIds ?? []).includes(p.id)).map(({id,name,title,organization})=>({id,name,title,organization}));
         const tracked=Object.keys(symbolAliases);
+        attempted=true;
         const market=constrainMarketImpact(await provider.analyzeNews(item,candidatePersons,tracked,model),item,tracked);
         if(schemaVersion===NEWS_ANALYSIS_SCHEMA_VERSION && !isDeepMarketImpact(market)) throw new Error('Incomplete deep analysis');
         success=true;
@@ -108,8 +127,15 @@ export function createNewsAnalysisService(options: {
       await save(key,result);
       return result;
     } finally {
-      if(reserved) await safe(()=>cache.finishBudget(day,token,success),()=>fallback.finishBudget(day,token,success));
-      await safe(()=>cache.releaseLease(key,token),()=>fallback.releaseLease(key,token));
+      // A failed/ambiguous provider response can still be billable. Production
+      // caps attempts, not just successfully validated analysis results.
+      try {
+        if(reserved) await coordinate(()=>cache.finishBudget(day,token,success || attempted && requireSharedCoordination()),()=>fallback.finishBudget(day,token,success));
+      } finally {
+        try {
+          if(providerSlot) await coordinate(()=>cache.releaseLease(providerSlot,token),()=>fallback.releaseLease(providerSlot,token));
+        } finally {await coordinate(()=>cache.releaseLease(key,token),()=>fallback.releaseLease(key,token));}
+      }
     }
   }
   return {

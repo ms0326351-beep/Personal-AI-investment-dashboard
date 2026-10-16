@@ -14,9 +14,16 @@ import { AnalysisLimitations, DeepEventSummary, DeepImpactChain, DeepScenarios, 
 const pending=new Map<string,Promise<NewsAIAnalysis>>();
 export async function requestAnalysis(newsId:string,retry=false):Promise<NewsAIAnalysis> {
   const existing=pending.get(newsId); if(existing) return existing;
-  const request=(async()=>{
-    const response=await fetch(`/api/news/${encodeURIComponent(newsId)}/analysis`,{method:'POST',headers:retry?{'X-News-Analysis-Retry':'1'}:undefined,signal:AbortSignal.timeout(45000)});
-    if(!response.ok) throw new Error('Analysis request failed');
+  const request=(async():Promise<NewsAIAnalysis>=>{
+    const response=await fetch(`/api/news/${encodeURIComponent(newsId)}/analysis`,{method:'POST',headers:{'X-News-Analysis-Request':'1',...(retry?{'X-News-Analysis-Retry':'1'}:{})},signal:AbortSignal.timeout(45000)});
+    if(!response.ok) {
+      if(![403,413,429,503].includes(response.status)) throw new Error('Analysis request failed');
+      const retryAfter=Number(response.headers.get('Retry-After'));
+      return {newsId,status:'unavailable',schemaVersion:'v2',modelVersion:'server-managed',market:null,portfolio:null,disclaimer:'AI 分析，非投資建議',analyzedAt:new Date().toISOString(),
+        unavailableReason:response.status===429?'分析請求過於頻繁，請稍後重試':response.status===503?'分析協調服務暫時無法使用，原始新聞仍可閱讀':'分析請求未通過驗證，請重新整理頁面',
+        ...(response.status===429?{errorCode:'rate_limit' as const}:{}),
+        ...(Number.isFinite(retryAfter)&&retryAfter>0&&retryAfter<=120?{retryAt:new Date(Date.now()+retryAfter*1000).toISOString()}:{}),};
+    }
     const result:unknown=await response.json();
     if(!isNewsAIResponse(result) || result.newsId!==newsId) throw new Error('Invalid analysis response');
     return result;

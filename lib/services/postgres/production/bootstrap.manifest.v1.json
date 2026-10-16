@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "sec-bootstrap-manifest-v1",
+  "artifactVersion": 2,
+  "environment": "production",
+  "database": "neondb",
+  "postgresMajor": 18,
+  "requiresExpectedInstanceUuid": true,
+  "requiresSeparateWriteApproval": true,
+  "actions": [
+    {
+      "order": 1,
+      "filename": "PRODUCTION_BOOTSTRAP_V2.sql",
+      "sha256": "ef949df95ad681edf4c323b226e1077e9f7182338df91f37264b142be2915f8a",
+      "transactional": true
+    }
+  ],
+  "recovery": "STOP; fresh READ ONLY verification of expected UUID, history checksum, roles and ownership; never blindly replay after unknown acknowledgement."
+}

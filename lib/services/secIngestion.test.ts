@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSecIngestionService, hashSecRawXml } from './secIngestionService';
 import { InMemorySecIngestionRepository } from './secIngestionRepository';
-import type { SecIngestionRepository } from '../types/secIngestion';
+import { SecRepositoryWriteError, type SecIngestionRepository } from '../types/secIngestion';
 import { SecTransportError, type SecForm4Metadata, type SecResolvedXmlEnvelope } from '../types/secTransport';
 import { secAccessionDirectoryUrl, secDocumentUrl, secFilingKey, validateSecMetadata } from '../utils/secEndpoints';
 import { form4Fixtures, form4Xml } from '../utils/fixtures/secForm4Xml';
@@ -123,7 +123,7 @@ test('repository rejects invalid row snapshot atomically',async()=>{
 test('repository failure leaves no partial success and retry can succeed',async()=>{
   const h=setup();let fails=true;
   const repository:SecIngestionRepository={getFilingByAccession:a=>h.repo.getFilingByAccession(a),saveIngestion:async r=>{
-    if(fails)throw new Error('private storage details');return h.repo.saveIngestion(r);
+    if(fails)throw new SecRepositoryWriteError('NOT_COMMITTED');return h.repo.saveIngestion(r);
   }};
   const service=createSecIngestionService(repository,h.transport);const r=await service.ingestForm4Filing(input);
   assert.equal(r.failure?.category,'REPOSITORY');assert.equal(r.transactionCount,0);assert.equal(await h.repo.getFilingByAccession(input.accessionNumber),null);

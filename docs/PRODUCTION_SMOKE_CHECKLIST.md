@@ -12,9 +12,10 @@ deployed SHA, date and deployment context. Do not record secret values.
 - Confirm account credits, Functions and Blobs availability; repository cannot establish account entitlement.
 - Production Functions: `OPENAI_API_KEY`; optional `NEWS_AI_MODEL` (default gpt-4.1-mini),
   `NEWS_AI_DAILY_LIMIT` (default 50 attempted provider calls per Taipei day; set a conservative launch limit).
-- `CONTEXT` is platform supplied. Only `production` uses site-wide news stores; all other contexts
-  use deploy stores. Do not manually override preview context as production. A preview must not share
-  production secrets or quota. Verify this on the adapter, not just in unit tests.
+- Functions scope: explicitly configure `NEWS_BLOB_STORE_SCOPE=site` for Production and
+  `NEWS_BLOB_STORE_SCOPE=deploy` for Deploy Previews and branch deploys. Missing/invalid values
+  fail closed. Do not use build-time `CONTEXT` to select a runtime store. Never configure Preview
+  as `site`; verify deployed scope/isolation. A preview must not share production secrets or quota.
 - Blobs SDK context is platform supplied; no personal access token is required in application code.
   Stores: `news-ai-analysis`, `news-source-snapshots`, `news-ai-requests`.
 - No market/FX/RSS API key is currently used. Yahoo USD/TWD rate is indicative and may be delayed.

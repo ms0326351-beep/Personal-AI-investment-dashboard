@@ -38,7 +38,7 @@ test('request guard fails closed for outages and malformed shared state, never l
   const invalid=createAnalysisRequestGuard(()=>({async getWithMetadata(){return {data:{count:-1},etag:'v'}},async setJSON(){throw Error('must not write')}}));
   assert.equal((await invalid.check())?.status,503);
 });
-test('only explicit production context uses production stores; branch/preview/unknown isolate data',()=>{
-  assert.equal(newsStoreScope('production'),'production');
-  for(const context of ['deploy-preview','branch-deploy','dev','', 'unknown']) assert.equal(newsStoreScope(context),'nonproduction');
+test('only explicit application store scope is accepted; no environment fallback',()=>{
+  assert.equal(newsStoreScope('site'),'site');assert.equal(newsStoreScope('deploy'),'deploy');
+  for(const scope of ['production','deploy-preview','branch-deploy','dev','', 'unknown','SITE',' site ']) assert.throws(()=>newsStoreScope(scope),/NEWS_BLOB_STORE_SCOPE/);
 });
